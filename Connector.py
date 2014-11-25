@@ -9,20 +9,22 @@ __author__ = 'novikov'
 
 
 class Connector:
-    DATABASE = 'users'
-
-    def __init__(self, hostname='localhost', port=27017):
+    def __init__(self, hostname, port, database, collection, credentials=None):
         logging.info("Подключение к БД на {}:{}".format(hostname, port))
         self.client = MongoClient(hostname, port)
-        self.db = self.client[self.DATABASE]
-        logging.info("Выбрана коллекция {}".format(UserModel.COLLECTION))
-        self.collection = self.db[UserModel.COLLECTION]
+        self.db = self.client[database]
+        if credentials:
+            logging.info("Использован механизм авторизации логин-пароль")
+            self.db.authenticate(credentials['user'], credentials['password'])
+        logging.info("Выбрана коллекция {}".format(collection))
+        self.collection = self.db[collection]
 
     def add_user(self, user: UserModel):
         logging.info(
             "{} добавляет пользователя {} с правами доступа '{}'".format(
                 user.creator,
-                user.name, user.get_access()))
+                user.name,
+                str(user.access)))
         result = self.collection.save(user.get_model())
         logging.info("Результат операции: {}".format(result))
 
@@ -40,14 +42,14 @@ class Connector:
         logging.info("{} удаляет пользователя {} с правами доступа '{}'".format(
             operator,
             user.name,
-            user.get_access()))
+            str(user.access)))
         result = self.collection.remove(user.get_model())
         logging.info("Результат операции: {}".format(result))
 
-    def update_user(self, user: UserModel):
+    def update_user(self, user):
         logging.info(
             "Изменение пользователя {} с правами {}".format(
                 user.name,
-                user.get_access()))
+                str(user.access)))
         result = self.collection.update({UserModel.ID: user.id}, user.get_model())
         logging.info("Результат операции: {}".format(result))

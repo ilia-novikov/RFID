@@ -1,19 +1,13 @@
 from datetime import datetime
 from hashlib import sha256
 
+from AccessLevel import AccessLevel
+
+
 __author__ = 'novikov'
 
 
 class UserModel:
-    COLLECTION = "RLAB"
-
-    GUEST = 0
-    COMMON = 1
-    PRIVILEGED = 2
-    DEVELOPER = 3
-
-    LEVELS = ["Guest", "Common user", "Privileged user", "Developer"]
-
     ID = "ID"
     NAME = "NAME"
     ACCESS = "ACCESS"
@@ -21,12 +15,13 @@ class UserModel:
     CREATOR = "CREATOR"
     HASH = "HASH"
 
-    def __init__(self, model=None, creator=None, card_id=None, name=None, access=COMMON, expire=datetime(2050, 1, 1)):
+    def __init__(self, model=None, creator=None, card_id=None, name=None, access=AccessLevel.common,
+                 expire=datetime(2050, 1, 1)):
         if model:
             self.creator = model[self.CREATOR]
             self.id = model[self.ID]
             self.name = model[self.NAME]
-            self.access = model[self.ACCESS]
+            self.access = AccessLevel(int(model[self.ACCESS]))
             self.expire = model[self.EXPIRE]
             self._hash = model[self.HASH]
         else:
@@ -57,10 +52,7 @@ class UserModel:
             self.CREATOR: self.creator,
             self.ID: self.id,
             self.NAME: self.name,
-            self.ACCESS: self.access,
+            self.ACCESS: self.access.value,
             self.EXPIRE: self.expire,
             self.HASH: self._hash
         }
-
-    def get_access(self):
-        return self.LEVELS[self.access]
