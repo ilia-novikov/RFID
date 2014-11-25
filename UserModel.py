@@ -23,14 +23,14 @@ class UserModel:
             self.name = model[self.NAME]
             self.access = AccessLevel(int(model[self.ACCESS]))
             self.expire = model[self.EXPIRE]
-            self._hash = model[self.HASH]
+            self.__hash = model[self.HASH]
         else:
             self.creator = creator
             self.id = card_id
             self.name = name
             self.access = access
             self.expire = expire
-            self._hash = None
+            self.__hash = None
         return
 
     @staticmethod
@@ -39,13 +39,13 @@ class UserModel:
         return sha256((salt + password).encode('utf8')).hexdigest()
 
     def check_password(self, password):
-        return self.__get_hash(password) == self._hash
+        return self.__get_hash(password) == self.__hash
 
     def update_password(self, password):
-        self._hash = self.__get_hash(password)
+        self.__hash = self.__get_hash(password)
 
     def has_password(self):
-        return self._hash is not None
+        return self.__hash is not None
 
     def get_model(self):
         return {
@@ -54,5 +54,5 @@ class UserModel:
             self.NAME: self.name,
             self.ACCESS: self.access.value,
             self.EXPIRE: self.expire,
-            self.HASH: self._hash
+            self.HASH: self.__hash
         }

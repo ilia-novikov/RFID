@@ -8,7 +8,7 @@ __author__ = 'novikov'
 class Settings:
     FILENAME = 'config.ini'
 
-    _DB_SECTION = 'db'
+    __DB_SECTION = 'db'
     DB_HOST = 'db_host'
     DB_PORT = 'db_port'
     DB_USER = 'db_user'
@@ -16,7 +16,7 @@ class Settings:
     DB_NAME = 'db_name'
     DB_COLLECTION = 'db_collection'
 
-    _DELAY_SECTION = 'time'
+    __DELAY_SECTION = 'time'
     DELAY_ERROR = 'delay_error'
     DELAY_SUCCESS = 'delay_success'
 
@@ -39,13 +39,13 @@ class Settings:
         self.settings.set(section, option, value)
 
     def get_db_option(self, option):
-        return self.settings.get(self._DB_SECTION, option, fallback=None)
+        return self.settings.get(self.__DB_SECTION, option, fallback=None)
 
     def set_db_option(self, option, value):
-        self.__set_option(self._DB_SECTION, option, value)
+        self.__set_option(self.__DB_SECTION, option, value)
 
     def get_delay_option(self, option):
-        return self.settings.get(self._DELAY_SECTION, option, fallback=0)
+        return self.settings.get(self.__DELAY_SECTION, option, fallback=0)
 
     def set_delay_option(self, option, value):
-        self.__set_option(self._DELAY_SECTION, option, value)
+        self.__set_option(self.__DELAY_SECTION, option, value)

@@ -63,6 +63,14 @@ class Main:
                                width=0,
                                height=0)
             exit(0)
+        if not self.connector.has_users():
+            if not self.add_developer():
+                logging.error("Ошибка при создании пользователя!")
+                self.dialog.msgbox("Пользователь не был создан! \n" +
+                                   "Работа завершена",
+                                   width=0,
+                                   height=0)
+                exit(0)
         self.operator = None
         self.standard_mode()
 
@@ -137,6 +145,38 @@ class Main:
                            width=0,
                            height=0)
 
+    def add_developer(self):
+        self.dialog.set_background_title("Добавление разработчика")
+        code, name = self.dialog.inputbox("Введите имя нового пользователя:",
+                                          width=0,
+                                          height=0,
+                                          init="Иван Петров")
+        if code != Dialog.OK:
+            return False
+        code, card_id = self.dialog.passwordbox("Приложите карту нового пользователя...",
+                                                width=0,
+                                                height=0)
+        if code != Dialog.OK:
+            return False
+        code, raw_date = self.dialog.calendar("Введите дату окончания действия аккаунта:",
+                                              width=0,
+                                              height=0,
+                                              day=1,
+                                              month=1,
+                                              year=2050)
+        if code != Dialog.OK:
+            return False
+        expire = datetime(day=raw_date[0], month=raw_date[1], year=raw_date[2])
+        user = UserModel(creator=name,
+                         card_id=card_id,
+                         name=name,
+                         access=AccessLevel.developer,
+                         expire=expire)
+        self.connector.add_user(user)
+        self.dialog.set_background_title("Пользователь создан")
+        self.show_user_info(user)
+        return True
+
     def add_user(self):
         self.dialog.set_background_title("Добавление пользователя")
         code, name = self.dialog.inputbox("Введите имя нового пользователя:",
@@ -161,11 +201,11 @@ class Main:
         code, tag = self.dialog.radiolist("Выберите уровень доступа:",
                                           width=0,
                                           height=0,
-                                          choices=[(str(choices.index(x) + 1), x, choices.index(x) == 0) for x in
+                                          choices=[(str(choices.index(x) + 1), str(x), choices.index(x) == 0) for x in
                                                    choices])
         if code != Dialog.OK:
             return
-        access = int(tag) - 1
+        access = AccessLevel(int(tag) - 1)
         code, raw_date = self.dialog.calendar("Введите дату окончания действия аккаунта:",
                                               width=0,
                                               height=0,
@@ -227,23 +267,23 @@ class Main:
         self.dialog.msgbox("Будет создан файл настроек",
                            width=0,
                            height=0)
-        code, db_values = self.dialog.form("Настройка базы данных",
-                                           width=0,
-                                           height=0,
-                                           elements=[
-                                               ("Хост:", 1, 1, 'localhost', 1, len("Коллекция:") + 2, 20, 20),
-                                               ("Порт:", 2, 1, '27017', 2, len("Коллекция:") + 2, 20, 20),
-                                               ("Логин:", 3, 1, '', 3, len("Коллекция:") + 2, 20, 20),
-                                               ("База:", 4, 1, '', 4, len("Коллекция:") + 2, 20, 20),
-                                               ("Коллекция:", 5, 1, '', 5, len("Коллекция:") + 2, 20, 20)
-                                           ])
+        code, values = self.dialog.form("Настройка базы данных",
+                                        width=0,
+                                        height=0,
+                                        elements=[
+                                            ("Хост:", 1, 1, 'localhost', 1, len("Коллекция:") + 2, 20, 20),
+                                            ("Порт:", 2, 1, '27017', 2, len("Коллекция:") + 2, 20, 20),
+                                            ("Логин:", 3, 1, '', 3, len("Коллекция:") + 2, 20, 20),
+                                            ("База:", 4, 1, '', 4, len("Коллекция:") + 2, 20, 20),
+                                            ("Коллекция:", 5, 1, '', 5, len("Коллекция:") + 2, 20, 20)
+                                        ])
         if code != Dialog.OK:
             return False
-        self.settings.set_db_option(Settings.DB_HOST, db_values[0])
-        self.settings.set_db_option(Settings.DB_PORT, db_values[1])
-        self.settings.set_db_option(Settings.DB_USER, db_values[2])
-        self.settings.set_db_option(Settings.DB_NAME, db_values[3])
-        self.settings.set_db_option(Settings.DB_COLLECTION, db_values[4])
+        self.settings.set_db_option(Settings.DB_HOST, values[0])
+        self.settings.set_db_option(Settings.DB_PORT, values[1])
+        self.settings.set_db_option(Settings.DB_USER, values[2])
+        self.settings.set_db_option(Settings.DB_NAME, values[3])
+        self.settings.set_db_option(Settings.DB_COLLECTION, values[4])
         if self.settings.get_db_option(Settings.DB_USER):
             code, password = self.dialog.passwordbox(
                 "Пароль пользователя {}".format(self.settings.get_db_option(Settings.DB_USER)),
@@ -253,7 +293,17 @@ class Main:
             if code != Dialog.OK:
                 return False
             self.settings.set_db_option(Settings.DB_PASSWORD, password)
-
+        code, values = self.dialog.form("Задержка (в секундах)",
+                                        width=0,
+                                        height=0,
+                                        elements=[
+                                            ("При успехе:", 1, 1, '5', 1, len("При успехе:") + 2, 20, 20),
+                                            ("При ошибке:", 2, 1, '2', 2, len("При успехе:") + 2, 20, 20)
+                                        ])
+        if code != Dialog.OK:
+            return False
+        self.settings.set_delay_option(Settings.DELAY_SUCCESS, values[0])
+        self.settings.set_delay_option(Settings.DELAY_ERROR, values[1])
         self.settings.save()
         return True
 
@@ -292,11 +342,11 @@ class Main:
                     sleep(self.settings.get_delay_option(Settings.DELAY_ERROR))
                     return
         choices = ["Просмотр сведений об учетной записи"]
-        if self.operator.access >= AccessLevel.common:
+        if self.operator.access.value >= AccessLevel.common.value:
             choices.extend(["Просмотр лога посещений", "Добавление гостя", "Изменение пароля"])
-        if self.operator.access >= AccessLevel.privileged:
+        if self.operator.access.value >= AccessLevel.privileged.value:
             choices.extend(["Добавление пользователя", "Редактирование пользователей", "Режим открытого доступа"])
-        if self.operator.access >= AccessLevel.developer:
+        if self.operator.access.value >= AccessLevel.developer.value:
             choices.extend(["Просмотр системных логов", "Расширенные настройки"])
         code, tag = self.dialog.menu("Выберите действие",
                                      choices=[('{}'.format(choices.index(x) + 1), x) for x in choices])
