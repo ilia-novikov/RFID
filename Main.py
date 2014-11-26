@@ -160,17 +160,15 @@ class Main:
                                                 height=0)
         if code != Dialog.OK:
             return False
-        """
         code, raw_date = self.dialog.calendar("Введите дату окончания действия аккаунта:",
                                               width=0,
                                               height=0,
                                               day=1,
                                               month=1,
-                                              year=2050)
+                                              year=2020)
         if code != Dialog.OK:
             return False
         expire = datetime(day=raw_date[0], month=raw_date[1], year=raw_date[2])
-       """
         user = UserModel(creator=name,
                          card_id=card_id,
                          name=name,
@@ -209,17 +207,15 @@ class Main:
         if code != Dialog.OK:
             return
         access = AccessLevel(int(tag) - 1)
-        """
         code, raw_date = self.dialog.calendar("Введите дату окончания действия аккаунта:",
                                               width=0,
                                               height=0,
                                               day=1,
                                               month=1,
-                                              year=2050)
+                                              year=2020)
         if code != Dialog.OK:
             return
         expire = datetime(day=raw_date[0], month=raw_date[1], year=raw_date[2])
-       """
         user = UserModel(creator=self.operator.name,
                          card_id=card_id,
                          name=name,

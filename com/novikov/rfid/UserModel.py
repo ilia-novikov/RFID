@@ -16,7 +16,7 @@ class UserModel:
     HASH = "HASH"
 
     def __init__(self, model=None, creator=None, card_id=None, name=None, access=AccessLevel.common,
-                 expire=datetime(2050, 1, 1)):
+                 expire=datetime(2020, 1, 1)):
         if model:
             self.creator = model[self.CREATOR]
             self.id = model[self.ID]
