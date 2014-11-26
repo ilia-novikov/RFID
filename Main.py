@@ -160,6 +160,7 @@ class Main:
                                                 height=0)
         if code != Dialog.OK:
             return False
+        """
         code, raw_date = self.dialog.calendar("Введите дату окончания действия аккаунта:",
                                               width=0,
                                               height=0,
@@ -169,11 +170,11 @@ class Main:
         if code != Dialog.OK:
             return False
         expire = datetime(day=raw_date[0], month=raw_date[1], year=raw_date[2])
+       """
         user = UserModel(creator=name,
                          card_id=card_id,
                          name=name,
-                         access=AccessLevel.developer,
-                         expire=expire)
+                         access=AccessLevel.developer)
         self.connector.add_user(user)
         self.dialog.set_background_title("Пользователь создан")
         self.show_user_info(user)
