@@ -12,7 +12,7 @@ from UserModel import UserModel
 from AccessLevel import AccessLevel
 
 
-__version__ = "0.6"
+__version__ = "0.7"
 __author__ = 'novikov'
 
 VISITS_LOG = 'visits.log'
@@ -72,6 +72,7 @@ class Main:
                                    height=0)
                 exit(0)
         self.operator = None
+        """ :type : UserModel """
         self.standard_mode()
 
     def append_visit(self):
@@ -357,7 +358,8 @@ class Main:
             lambda: self.show_visits_log(),
             lambda: self.add_guest(),
             lambda: self.create_password(),
-            lambda: self.add_user()
+            lambda: self.add_user(),
+            lambda: self.edit_all_users()
         ][int(tag) - 1]()
         self.show_control_window(False)
 
@@ -395,6 +397,35 @@ class Main:
                                    width=0,
                                    height=0)
                 exit(0)
+
+    def edit_all_users(self):
+        users = self.connector.get_all_users()
+        code, tag = self.dialog.menu("Выберите пользователя",
+                                     width=0,
+                                     height=0,
+                                     choices=[(str(users.index(x) + 1), x.name) for x in users])
+        if code != Dialog.OK:
+            return
+        user = users[int(tag) - 1]
+        actions = [
+            {'name': "Просмотреть информацию", 'action': lambda x: self.show_user_info(x)},
+            {'name': "Удалить пользователя", 'action': lambda x: self.delete_user(x)}
+        ]
+        code, tag = self.dialog.menu("Выберите действие",
+                                     width=0,
+                                     height=0,
+                                     choices=[(str(actions.index(x) + 1), x['name']) for x in actions])
+        if code != Dialog.OK:
+            return
+        actions[int(tag) - 1]['action'](user)
+        self.edit_all_users()
+
+    def delete_user(self, user: UserModel):
+        code = self.dialog.yesno("Вы уверены?",
+                                 width=0,
+                                 height=0)
+        if code == Dialog.OK:
+            self.connector.remove_user(user, self.operator.name)
 
 
 signals = [{'orig': signal.signal(signal.SIGINT, signal.SIG_IGN), 'signal': signal.SIGINT},

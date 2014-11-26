@@ -45,7 +45,7 @@ class Settings:
         self.__set_option(self.__DB_SECTION, option, value)
 
     def get_delay_option(self, option):
-        return self.settings.get(self.__DELAY_SECTION, option, fallback=0)
+        return int(self.settings.get(self.__DELAY_SECTION, option, fallback=0))
 
     def set_delay_option(self, option, value):
         self.__set_option(self.__DELAY_SECTION, option, value)

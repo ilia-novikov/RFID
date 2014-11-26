@@ -49,10 +49,13 @@ class Connector:
         result = self.__collection.remove(user.get_model())
         logging.info("Результат операции: {}".format(result))
 
-    def update_user(self, user):
+    def update_user(self, user: UserModel):
         logging.info(
             "Изменение пользователя {} с правами {}".format(
                 user.name,
                 str(user.access)))
         result = self.__collection.update({UserModel.ID: user.id}, user.get_model())
         logging.info("Результат операции: {}".format(result))
+
+    def get_all_users(self):
+        return [UserModel(model=x) for x in self.__collection.find()]
