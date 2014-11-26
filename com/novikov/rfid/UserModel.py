@@ -1,7 +1,7 @@
 from datetime import datetime
 from hashlib import sha256
 
-from AccessLevel import AccessLevel
+from com.novikov.rfid.AccessLevel import AccessLevel
 
 
 __author__ = 'novikov'

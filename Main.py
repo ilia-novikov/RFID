@@ -6,10 +6,10 @@ import signal
 from dialog import Dialog
 from pymongo.errors import PyMongoError
 
-from Connector import Connector
-from Settings import Settings
-from UserModel import UserModel
-from AccessLevel import AccessLevel
+from com.novikov.rfid.Connector import Connector
+from com.novikov.rfid.Settings import Settings
+from com.novikov.rfid.UserModel import UserModel
+from com.novikov.rfid.AccessLevel import AccessLevel
 
 
 __version__ = "0.7"

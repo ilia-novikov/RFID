@@ -2,7 +2,7 @@ import logging
 
 from pymongo import MongoClient
 
-from UserModel import UserModel
+from com.novikov.rfid.UserModel import UserModel
 
 
 __author__ = 'novikov'
