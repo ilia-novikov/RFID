@@ -73,6 +73,7 @@ class Main:
                 exit(0)
         self.operator = None
         """ :type : UserModel """
+        self.was_unlocked = False
         self.standard_mode()
 
     def append_visit(self):
@@ -344,11 +345,19 @@ class Main:
                     return
         choices = ["Просмотр сведений об учетной записи"]
         if self.operator.access.value >= AccessLevel.common.value:
-            choices.extend(["Просмотр лога посещений", "Добавление гостя", "Изменение пароля"])
+            choices.extend([
+                "Просмотр лога посещений",
+                "Добавление гостя",
+                "Изменение пароля"])
         if self.operator.access.value >= AccessLevel.privileged.value:
-            choices.extend(["Добавление пользователя", "Редактирование пользователей", "Режим открытого доступа"])
+            choices.extend([
+                "Добавление пользователя",
+                "Редактирование пользователей",
+                "Закрыть помещение"])
         if self.operator.access.value >= AccessLevel.developer.value:
-            choices.extend(["Просмотр системных логов", "Расширенные настройки"])
+            choices.extend([
+                "Просмотр системных логов",
+                "Расширенные настройки"])
         code, tag = self.dialog.menu("Выберите действие",
                                      choices=[('{}'.format(choices.index(x) + 1), x) for x in choices])
         if code != Dialog.OK:
@@ -359,13 +368,19 @@ class Main:
             lambda: self.add_guest(),
             lambda: self.create_password(),
             lambda: self.add_user(),
-            lambda: self.edit_all_users()
+            lambda: self.edit_all_users(),
+            lambda: self.lock(),
+            lambda: self.show_app_log()
         ][int(tag) - 1]()
-        self.show_control_window(False)
+        if not self.was_unlocked:
+            self.show_control_window(False)
+        else:
+            self.was_unlocked = True
+            return
 
     def standard_mode(self):
-        self.dialog.set_background_title("Рабочий режим")
         while True:
+            self.dialog.set_background_title("Рабочий режим")
             code, card_id = self.dialog.passwordbox("ID:",
                                                     width=0,
                                                     height=0,
@@ -398,6 +413,44 @@ class Main:
                                    height=0)
                 exit(0)
 
+    def lock_mode(self):
+        self.dialog.set_background_title("Установлена блокировка")
+        while True:
+            code, card_id = self.dialog.passwordbox("ID:",
+                                                    width=0,
+                                                    height=0,
+                                                    title="Приложите карту повышенного доступа")
+            if code == Dialog.OK:
+                self.operator = self.connector.get_user(card_id)
+                if not self.operator:
+                    self.dialog.infobox("Карта отклонена! \n" +
+                                        "Запись добавлена в лог",
+                                        width=0,
+                                        height=0)
+                    self.append_wrong_id(card_id)
+                    sleep(self.settings.get_delay_option(Settings.DELAY_ERROR))
+                elif self.operator.access.value <= AccessLevel.common.value:
+                    self.dialog.infobox("Низкий уровень доступа! \n" +
+                                        "Запись добавлена в лог",
+                                        width=0,
+                                        height=0)
+                    self.append_low_level()
+                    sleep(self.settings.get_delay_option(Settings.DELAY_ERROR))
+                else:
+                    code = self.dialog.pause("Блокировка снята \n" +
+                                             "Пользователь: {} \n".format(self.operator.name) +
+                                             "Уровень доступа: {} \n".format(str(self.operator.access)),
+                                             seconds=self.settings.get_delay_option(Settings.DELAY_SUCCESS),
+                                             title="ОК",
+                                             extra_button=True,
+                                             extra_label="Консоль")
+                    self.append_visit()
+                    if code == Dialog.EXTRA:
+                        self.show_control_window()
+                    # Opening the door
+                    pass
+                    return
+
     def edit_all_users(self):
         users = self.connector.get_all_users()
         code, tag = self.dialog.menu("Выберите пользователя",
@@ -426,6 +479,29 @@ class Main:
                                  height=0)
         if code == Dialog.OK:
             self.connector.remove_user(user, self.operator.name)
+
+    def lock(self):
+        code = self.dialog.yesno("Вы уверены? \n",
+                                 width=0,
+                                 height=0)
+        if code != Dialog.OK:
+            return
+        self.lock_mode()
+        self.was_unlocked = True
+
+    def append_low_level(self):
+        with open(VISITS_LOG, mode='a') as visits:
+            visits.write(datetime.now().strftime('%a, %d %B %Y, %H:%M:%S: Низкий уровень доступа {} ({}) \n').
+                         format(self.operator.name, str(self.operator.access)))
+
+    def show_app_log(self):
+        logging.info("Пользователь {} с правами доступа '{}' просматривает лог приложения".format(
+            self.operator.name,
+            str(self.operator.access)
+        ))
+        self.dialog.textbox(APPLICATION_LOG,
+                            width=0,
+                            height=0)
 
 
 signals = [{'orig': signal.signal(signal.SIGINT, signal.SIG_IGN), 'signal': signal.SIGINT},
