@@ -8,7 +8,7 @@ from com.novikov.rfid.UserModel import UserModel
 __author__ = 'novikov'
 
 
-class Connector:
+class DatabaseConnector:
     def __init__(self, hostname, port, database, collection, credentials=None):
         logging.info("Подключение к БД на {}:{}".format(hostname, port))
         self.__client = MongoClient(hostname, port)

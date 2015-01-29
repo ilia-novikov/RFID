@@ -6,7 +6,7 @@ import signal
 from dialog import Dialog
 from pymongo.errors import PyMongoError
 
-from com.novikov.rfid.Connector import Connector
+from com.novikov.rfid.DatabaseConnector import DatabaseConnector
 from com.novikov.rfid.Settings import Settings
 from com.novikov.rfid.UserModel import UserModel
 from com.novikov.rfid.AccessLevel import AccessLevel
@@ -43,11 +43,11 @@ class Main:
                     'user': self.settings.get_db_option(Settings.DB_USER),
                     'password': self.settings.get_db_option(Settings.DB_PASSWORD)
                 }
-            self.connector = Connector(self.settings.get_db_option(Settings.DB_HOST),
-                                       int(self.settings.get_db_option(Settings.DB_PORT)),
-                                       self.settings.get_db_option(Settings.DB_NAME),
-                                       self.settings.get_db_option(Settings.DB_COLLECTION),
-                                       credentials)
+            self.connector = DatabaseConnector(self.settings.get_db_option(Settings.DB_HOST),
+                                               int(self.settings.get_db_option(Settings.DB_PORT)),
+                                               self.settings.get_db_option(Settings.DB_NAME),
+                                               self.settings.get_db_option(Settings.DB_COLLECTION),
+                                               credentials)
         except PyMongoError as e:
             logging.error("Ошибка входа с текущими настройками подключения к БД!")
             logging.error("Ошибка: ".format(e))
@@ -225,6 +225,12 @@ class Main:
             return False
         self.settings.set_delay_option(Settings.DELAY_SUCCESS, values[0])
         self.settings.set_delay_option(Settings.DELAY_ERROR, values[1])
+        code, value = self.dialog.inputbox("Путь к адаптеру UART",
+                                           width=0,
+                                           height=0)
+        if code != Dialog.OK:
+            return False
+        self.settings.set_uart_path(value)
         self.settings.save()
         return True
 
@@ -348,9 +354,9 @@ class Main:
                                         width=0,
                                         height=0)
                     sleep(self.settings.get_delay_option(Settings.DELAY_ERROR))
-                elif self.operator.expire >= datetime.now():
+                elif datetime.now() >= self.operator.expire:
                     self.visits_logger.inactive_card(self.operator)
-                    self.dialog.infobox("Карта заблокирована! \n" +
+                    self.dialog.infobox("Карта устарела! \n" +
                                         "Запись добавлена в лог",
                                         width=0,
                                         height=0)

@@ -49,3 +49,9 @@ class Settings:
 
     def set_delay_option(self, option, value):
         self.__set_option(self.__DELAY_SECTION, option, value)
+
+    def get_uart_path(self):
+        return self.settings.get('uart', 'path', fallback=None)
+
+    def set_uart_path(self, value):
+        self.__set_option('uart', 'path', value)
