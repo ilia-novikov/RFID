@@ -14,9 +14,10 @@ class UserModel:
     EXPIRE = "EXPIRE"
     CREATOR = "CREATOR"
     HASH = "HASH"
+    ACTIVE = "ACTIVE"
 
     def __init__(self, model=None, creator=None, card_id=None, name=None, access=AccessLevel.common,
-                 expire=datetime(2020, 1, 1)):
+                 expire=datetime(2020, 1, 1), active=True):
         if model:
             self.creator = model[self.CREATOR]
             self.id = model[self.ID]
@@ -24,6 +25,7 @@ class UserModel:
             self.access = AccessLevel(int(model[self.ACCESS]))
             self.expire = model[self.EXPIRE]
             self.__hash = model[self.HASH]
+            self.active = model[self.ACTIVE]
         else:
             self.creator = creator
             self.id = card_id
@@ -31,6 +33,7 @@ class UserModel:
             self.access = access
             self.expire = expire
             self.__hash = None
+            self.active = active
         return
 
     @staticmethod
@@ -54,5 +57,6 @@ class UserModel:
             self.NAME: self.name,
             self.ACCESS: self.access.value,
             self.EXPIRE: self.expire,
-            self.HASH: self.__hash
+            self.HASH: self.__hash,
+            self.ACTIVE: self.active
         }

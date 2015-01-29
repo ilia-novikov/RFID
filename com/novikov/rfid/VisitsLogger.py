@@ -7,10 +7,10 @@ __author__ = 'novikov'
 
 
 class VisitsLogger:
-    FILENAME = ''
+    FILENAME = 'visits.log'
 
     def __init__(self):
-        self.__append("Приложение запущено, версия: {}".format(__version__))
+        self.__append("Приложение запущено, версия: {} \n".format(__version__))
 
     @staticmethod
     def __get_datetime():
@@ -21,8 +21,9 @@ class VisitsLogger:
             visits.write(self.__get_datetime() + message)
 
     def visit(self, user: UserModel):
-        self.__append("Вошел {} ({}) \n".format(
-            user.name,
+        base = "Вошел {}".format(user.name)
+        self.__append("{} ({}) \n".format(
+            base,
             str(user.access)))
 
     def wrong_password(self, user: UserModel):
@@ -36,5 +37,15 @@ class VisitsLogger:
 
     def wrong_access(self, user: UserModel):
         self.__append("Попытка разблокировки с низким уровнем прав: {} ({}) \n".format(
+            user.name,
+            str(user.access)))
+
+    def inactive_card(self, user: UserModel):
+        self.__append("Попытка разблокировки с заблокированной картой: {} ({}) \n".format(
+            user.name,
+            str(user.access)))
+
+    def expired(self, user: UserModel):
+        self.__append("Попытка разблокировки с устаревшей картой: {} ({}) \n".format(
             user.name,
             str(user.access)))

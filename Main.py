@@ -291,8 +291,10 @@ class Main:
         if code != Dialog.OK:
             return
         user = users[int(tag) - 1]
+        toggle_active_message = "Заблокировать" if user.active else "Снять блокировку"
         actions = [
             {'name': "Просмотреть информацию", 'action': lambda x: self.show_user_info(x)},
+            {'name': toggle_active_message, 'action': lambda x: self.toggle_user(x)},
             {'name': "Удалить пользователя", 'action': lambda x: self.delete_user(x)}
         ]
         code, tag = self.dialog.menu("Выберите действие",
@@ -311,6 +313,14 @@ class Main:
         if code == Dialog.OK:
             self.connector.remove_user(user, self.operator.name)
 
+    def toggle_user(self, user):
+        code = self.dialog.yesno("Вы уверены?",
+                                 width=0,
+                                 height=0)
+        if code == Dialog.OK:
+            user.active = not user.active
+            self.connector.update_user(user)
+
     # endregion
 
     # region Режимы работы
@@ -325,13 +335,28 @@ class Main:
             if code == Dialog.OK:
                 self.operator = self.connector.get_user(card_id)
                 if not self.operator:
+                    self.visits_logger.wrong_id(card_id)
                     self.dialog.infobox("Карта отклонена! \n" +
                                         "Запись добавлена в лог",
                                         width=0,
                                         height=0)
-                    self.visits_logger.wrong_id(card_id)
+                    sleep(self.settings.get_delay_option(Settings.DELAY_ERROR))
+                elif not self.operator.active:
+                    self.visits_logger.inactive_card(self.operator)
+                    self.dialog.infobox("Карта заблокирована! \n" +
+                                        "Запись добавлена в лог",
+                                        width=0,
+                                        height=0)
+                    sleep(self.settings.get_delay_option(Settings.DELAY_ERROR))
+                elif self.operator.expire >= datetime.now():
+                    self.visits_logger.inactive_card(self.operator)
+                    self.dialog.infobox("Карта заблокирована! \n" +
+                                        "Запись добавлена в лог",
+                                        width=0,
+                                        height=0)
                     sleep(self.settings.get_delay_option(Settings.DELAY_ERROR))
                 else:
+                    self.visits_logger.visit(self.operator)
                     code = self.dialog.pause("Авторизация успешна \n" +
                                              "Пользователь: {} \n".format(self.operator.name) +
                                              "Уровень доступа: {} \n".format(str(self.operator.access)),
@@ -339,7 +364,6 @@ class Main:
                                              title="ОК",
                                              extra_button=True,
                                              extra_label="Консоль")
-                    self.visits_logger.visit(self.operator)
                     if code == Dialog.EXTRA:
                         self.show_control_window()
                     # Opening the door
@@ -460,7 +484,8 @@ class Main:
             lambda: self.add_user(),
             lambda: self.edit_all_users(),
             lambda: self.lock(),
-            lambda: self.show_app_log()
+            lambda: self.show_app_log(),
+            lambda: None
         ][int(tag) - 1]()
         if not self.was_unlocked:
             self.show_control_window(False)
@@ -485,6 +510,7 @@ class Main:
         self.dialog.textbox(VisitsLogger.FILENAME,
                             width=0,
                             height=0)
+
 
 signals = [{'orig': signal.signal(signal.SIGINT, signal.SIG_IGN), 'signal': signal.SIGINT},
            {'orig': signal.signal(signal.SIGQUIT, signal.SIG_IGN), 'signal': signal.SIGQUIT},
