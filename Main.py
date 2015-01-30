@@ -4,7 +4,10 @@ from datetime import datetime, date, timedelta
 import signal
 
 from dialog import Dialog
+
 from pymongo.errors import PyMongoError
+
+from com.novikov.rfid.CardReader import CardReader
 
 from com.novikov.rfid.DatabaseConnector import DatabaseConnector
 from com.novikov.rfid.Settings import Settings
@@ -68,8 +71,7 @@ class Main:
         """ :type : UserModel """
         self.was_unlocked = False
         self.is_waiting_card = False
-        self.terminating = False
-        self.card_method = None
+        CardReader(self).start()
         self.standard_mode()
 
     # region Создание пользователей
@@ -383,9 +385,6 @@ class Main:
                                    height=0)
                 exit(0)
 
-    def standard_mode_handler(self, card):
-        pass
-
     def lock_mode(self):
         self.dialog.set_background_title("Установлена блокировка")
         while True:
@@ -536,9 +535,6 @@ class Main:
         self.dialog.textbox(VisitsLogger.FILENAME,
                             width=0,
                             height=0)
-
-    def notify_card(self, id):
-        pass
 
 
 signals = [{'orig': signal.signal(signal.SIGINT, signal.SIG_IGN), 'signal': signal.SIGINT},
