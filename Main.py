@@ -67,6 +67,9 @@ class Main:
         self.operator = None
         """ :type : UserModel """
         self.was_unlocked = False
+        self.is_waiting_card = False
+        self.terminating = False
+        self.card_method = None
         self.standard_mode()
 
     # region Создание пользователей
@@ -380,6 +383,9 @@ class Main:
                                    height=0)
                 exit(0)
 
+    def standard_mode_handler(self, card):
+        pass
+
     def lock_mode(self):
         self.dialog.set_background_title("Установлена блокировка")
         while True:
@@ -395,6 +401,20 @@ class Main:
                                         width=0,
                                         height=0)
                     self.visits_logger.wrong_id(card_id)
+                    sleep(self.settings.get_delay_option(Settings.DELAY_ERROR))
+                elif not self.operator.active:
+                    self.visits_logger.inactive_card(self.operator)
+                    self.dialog.infobox("Карта заблокирована! \n" +
+                                        "Запись добавлена в лог",
+                                        width=0,
+                                        height=0)
+                    sleep(self.settings.get_delay_option(Settings.DELAY_ERROR))
+                elif datetime.now() >= self.operator.expire:
+                    self.visits_logger.inactive_card(self.operator)
+                    self.dialog.infobox("Карта устарела! \n" +
+                                        "Запись добавлена в лог",
+                                        width=0,
+                                        height=0)
                     sleep(self.settings.get_delay_option(Settings.DELAY_ERROR))
                 elif self.operator.access.value <= AccessLevel.common.value:
                     self.dialog.infobox("Низкий уровень доступа! \n" +
@@ -516,6 +536,9 @@ class Main:
         self.dialog.textbox(VisitsLogger.FILENAME,
                             width=0,
                             height=0)
+
+    def notify_card(self, id):
+        pass
 
 
 signals = [{'orig': signal.signal(signal.SIGINT, signal.SIG_IGN), 'signal': signal.SIGINT},
