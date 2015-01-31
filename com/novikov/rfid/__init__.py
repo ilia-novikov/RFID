@@ -1,2 +1,2 @@
-__author__ = 'novikov'
-__version__ = "0.7"
+__author__ = 'Ilia Novikov'
+__version__ = "0.8"

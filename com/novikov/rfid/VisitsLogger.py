@@ -3,7 +3,7 @@ from datetime import datetime
 from com.novikov.rfid.UserModel import UserModel
 from com.novikov.rfid import __version__
 
-__author__ = 'novikov'
+__author__ = 'Ilia Novikov'
 
 
 class VisitsLogger:

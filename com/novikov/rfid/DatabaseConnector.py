@@ -5,7 +5,7 @@ from pymongo import MongoClient
 from com.novikov.rfid.UserModel import UserModel
 
 
-__author__ = 'novikov'
+__author__ = 'Ilia Novikov'
 
 
 class DatabaseConnector:
@@ -18,6 +18,14 @@ class DatabaseConnector:
             self.__db.authenticate(credentials['user'], credentials['password'])
         logging.info("Выбрана коллекция {}".format(collection))
         self.__collection = self.__db[collection]
+
+    @staticmethod
+    def add_db_admin(hostname, port, database, credentials):
+        logging.info("Создание администратора БД")
+        client = MongoClient(hostname, port)
+        db = client[database]
+        db.add_user(credentials['user'], credentials['password'])
+        client.close()
 
     def has_users(self):
         return self.__collection.count() > 0

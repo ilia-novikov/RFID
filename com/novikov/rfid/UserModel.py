@@ -4,7 +4,7 @@ from hashlib import sha256
 from com.novikov.rfid.AccessLevel import AccessLevel
 
 
-__author__ = 'novikov'
+__author__ = 'Ilia Novikov'
 
 
 class UserModel:

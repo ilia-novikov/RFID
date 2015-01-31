@@ -1,14 +1,15 @@
+#! /usr/bin/env python3
+
 import logging
 from time import sleep
 from datetime import datetime, date, timedelta
 import signal
+from os import getuid
 
 from dialog import Dialog
-
 from pymongo.errors import PyMongoError
 
 from com.novikov.rfid.CardReader import CardReader
-
 from com.novikov.rfid.DatabaseConnector import DatabaseConnector
 from com.novikov.rfid.Settings import Settings
 from com.novikov.rfid.UserModel import UserModel
@@ -17,7 +18,7 @@ from com.novikov.rfid.VisitsLogger import VisitsLogger
 from com.novikov.rfid import __version__
 
 
-__author__ = 'novikov'
+__author__ = 'Ilia Novikov'
 
 APPLICATION_LOG = 'application.log'
 
@@ -30,6 +31,12 @@ class Main:
         self.dialog = Dialog(dialog='dialog')
         self.visits_logger = VisitsLogger()
         logging.info("Приложение запущено, версия {}".format(__version__))
+        if getuid() != 0:
+            self.dialog.msgbox("Необходим запуск с правами root! \n" +
+                               "Работа завершена",
+                               width=0,
+                               height=0)
+            exit(0)
         self.settings = Settings()
         if self.settings.is_first_run:
             if not self.create_settings():
@@ -84,9 +91,8 @@ class Main:
                                           init="Иван Петров")
         if code != Dialog.OK:
             return False
-        code, card_id = self.dialog.passwordbox("Приложите карту нового пользователя...",
-                                                width=0,
-                                                height=0)
+
+        code, card_id = self.request_card("Приложите карту разработчика")
         if code != Dialog.OK:
             return False
         code, raw_date = self.dialog.calendar("Введите дату окончания действия аккаунта:",
@@ -116,9 +122,7 @@ class Main:
                                           init="Иван Петров")
         if code != Dialog.OK:
             return
-        code, card_id = self.dialog.passwordbox("Приложите карту нового пользователя...",
-                                                width=0,
-                                                height=0)
+        code, card_id = self.request_card("Приложите карту нового пользователя...")
         if code != Dialog.OK:
             return
         if self.connector.get_user(card_id):
@@ -163,9 +167,7 @@ class Main:
                                           init="Иван Петров")
         if code != Dialog.OK:
             return
-        code, card_id = self.dialog.passwordbox("Приложите карту гостя...",
-                                                width=0,
-                                                height=0)
+        code, card_id = self.request_card("Приложите карту гостя...")
         if code != Dialog.OK:
             return
         if self.connector.get_user(card_id):
@@ -200,8 +202,8 @@ class Main:
                                             ("Хост:", 1, 1, 'localhost', 1, len("Коллекция:") + 2, 20, 20),
                                             ("Порт:", 2, 1, '27017', 2, len("Коллекция:") + 2, 20, 20),
                                             ("Логин:", 3, 1, '', 3, len("Коллекция:") + 2, 20, 20),
-                                            ("База:", 4, 1, '', 4, len("Коллекция:") + 2, 20, 20),
-                                            ("Коллекция:", 5, 1, '', 5, len("Коллекция:") + 2, 20, 20)
+                                            ("База:", 4, 1, 'rfid', 4, len("Коллекция:") + 2, 20, 20),
+                                            ("Коллекция:", 5, 1, 'rlab', 5, len("Коллекция:") + 2, 20, 20)
                                         ])
         if code != Dialog.OK:
             return False
@@ -219,6 +221,14 @@ class Main:
             if code != Dialog.OK:
                 return False
             self.settings.set_db_option(Settings.DB_PASSWORD, password)
+            DatabaseConnector.add_db_admin(
+                self.settings.get_db_option(Settings.DB_HOST),
+                int(self.settings.get_db_option(Settings.DB_PORT)),
+                self.settings.get_db_option(Settings.DB_NAME),
+                {
+                    'user': self.settings.get_db_option(Settings.DB_USER),
+                    'password': self.settings.get_db_option(Settings.DB_PASSWORD)
+                })
         code, values = self.dialog.form("Задержка (в секундах)",
                                         width=0,
                                         height=0,
@@ -284,11 +294,9 @@ class Main:
             user.name,
             str(user.access),
             user.expire,
-            {
-                True: 'установлен',
-                False: 'отсутствует'
-            }[user.has_password()]
-        )
+            'установлен'
+            if user.has_password() else
+            'отсутствует')
         self.dialog.msgbox(info,
                            width=0,
                            height=0)
@@ -339,10 +347,8 @@ class Main:
     def standard_mode(self):
         while True:
             self.dialog.set_background_title("Рабочий режим")
-            code, card_id = self.dialog.passwordbox("ID:",
-                                                    width=0,
-                                                    height=0,
-                                                    title="Приложите карту...")
+
+            code, card_id = self.request_card("Приложите карту...")
             if code == Dialog.OK:
                 self.operator = self.connector.get_user(card_id)
                 if not self.operator:
@@ -388,10 +394,7 @@ class Main:
     def lock_mode(self):
         self.dialog.set_background_title("Установлена блокировка")
         while True:
-            code, card_id = self.dialog.passwordbox("ID:",
-                                                    width=0,
-                                                    height=0,
-                                                    title="Приложите карту повышенного доступа")
+            code, card_id = self.request_card("Приложите карту повышенного доступа")
             if code == Dialog.OK:
                 self.operator = self.connector.get_user(card_id)
                 if not self.operator:
@@ -495,8 +498,7 @@ class Main:
                 "Закрыть помещение"])
         if self.operator.access.value >= AccessLevel.developer.value:
             choices.extend([
-                "Просмотр системных логов",
-                "Расширенные настройки"])
+                "Просмотр системных логов"])
         code, tag = self.dialog.menu("Выберите действие",
                                      choices=[('{}'.format(choices.index(x) + 1), x) for x in choices])
         if code != Dialog.OK:
@@ -509,8 +511,7 @@ class Main:
             lambda: self.add_user(),
             lambda: self.edit_all_users(),
             lambda: self.lock(),
-            lambda: self.show_app_log(),
-            lambda: None
+            lambda: self.show_app_log()
         ][int(tag) - 1]()
         if not self.was_unlocked:
             self.show_control_window(False)
@@ -535,6 +536,15 @@ class Main:
         self.dialog.textbox(VisitsLogger.FILENAME,
                             width=0,
                             height=0)
+
+    def request_card(self, title, message=''):
+        self.is_waiting_card = True
+        code, card_id = self.dialog.passwordbox(message,
+                                                width=0,
+                                                height=0,
+                                                title=title)
+        self.is_waiting_card = False
+        return code, card_id
 
 
 signals = [{'orig': signal.signal(signal.SIGINT, signal.SIG_IGN), 'signal': signal.SIGINT},

@@ -2,7 +2,7 @@ from configparser import ConfigParser
 from os.path import exists
 
 
-__author__ = 'novikov'
+__author__ = 'Ilia Novikov'
 
 
 class Settings:

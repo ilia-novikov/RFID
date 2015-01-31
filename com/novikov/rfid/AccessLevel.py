@@ -1,6 +1,6 @@
 from enum import Enum
 
-__author__ = 'novikov'
+__author__ = 'Ilia Novikov'
 
 
 class AccessLevel(Enum):
