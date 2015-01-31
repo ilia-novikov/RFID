@@ -1,0 +1,7 @@
+#! /bin/bash
+
+echo "Removing log files..." &&
+rm -rf ./*.log &&
+echo "Removing config files..." &&
+rm -rf ./*.ini &&
+echo "Cleanup done!"
