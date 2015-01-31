@@ -49,3 +49,7 @@ class VisitsLogger:
         self.__append("Попытка разблокировки с устаревшей картой: {} ({}) \n".format(
             user.name,
             str(user.access)))
+
+    def exit(self, user: UserModel):
+        self.__append("Разработчик завершил выполнение программы: {} \n".format(
+            user.name))

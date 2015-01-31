@@ -22,6 +22,14 @@ __author__ = 'Ilia Novikov'
 
 APPLICATION_LOG = 'application.log'
 
+"""
+
+    Очистка логов
+    Очистка БД
+    Логи в БД (?)
+    Специальный режим ведения логов
+
+"""
 
 class Main:
     def __init__(self):
@@ -333,6 +341,12 @@ class Main:
             self.connector.remove_user(user, self.operator.name)
 
     def toggle_user(self, user):
+        if self.operator.access.value < user.access.value:
+            self.dialog.msgbox("Недостаточно прав для блокировки {}. Необходим уровень доступа {}"
+                               .format(user.name, AccessLevel.developer),
+                               width=0,
+                               height=0)
+            return
         code = self.dialog.yesno("Вы уверены?",
                                  width=0,
                                  height=0)
@@ -385,11 +399,8 @@ class Main:
                         self.show_control_window()
                     # Opening the door
                     pass
-            if code == Dialog.ESC:
-                self.dialog.msgbox("Работа завершена",
-                                   width=0,
-                                   height=0)
-                exit(0)
+            if code == Dialog.ESC or code == Dialog.CANCEL:
+                logging.info("Попытка завершить программу из основного режима")
 
     def lock_mode(self):
         self.dialog.set_background_title("Установлена блокировка")
@@ -439,6 +450,8 @@ class Main:
                     # Opening the door
                     pass
                     return
+            if code == Dialog.ESC or code == Dialog.CANCEL:
+                logging.info("Попытка завершить программу из защищенного режима")
 
     def lock(self):
         code = self.dialog.yesno("Вы уверены? \n",
@@ -498,7 +511,9 @@ class Main:
                 "Закрыть помещение"])
         if self.operator.access.value >= AccessLevel.developer.value:
             choices.extend([
-                "Просмотр системных логов"])
+                "Просмотр системных логов",
+                "Очистка БД",
+                "Завершение программы"])
         code, tag = self.dialog.menu("Выберите действие",
                                      choices=[('{}'.format(choices.index(x) + 1), x) for x in choices])
         if code != Dialog.OK:
@@ -511,7 +526,9 @@ class Main:
             lambda: self.add_user(),
             lambda: self.edit_all_users(),
             lambda: self.lock(),
-            lambda: self.show_app_log()
+            lambda: self.show_app_log(),
+            lambda: self.clean_db(),
+            lambda: self.exit()
         ][int(tag) - 1]()
         if not self.was_unlocked:
             self.show_control_window(False)
@@ -544,7 +561,16 @@ class Main:
                                                 height=0,
                                                 title=title)
         self.is_waiting_card = False
+        if not card_id:
+            code = Dialog.ESC
         return code, card_id
+
+    def exit(self):
+        logging.info("Разработчик завершил выполнение программы: {}".format(self.operator.name))
+        exit(0)
+
+    def clean_db(self):
+        pass
 
 
 signals = [{'orig': signal.signal(signal.SIGINT, signal.SIG_IGN), 'signal': signal.SIGINT},
