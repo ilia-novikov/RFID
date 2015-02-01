@@ -1,5 +1,6 @@
 import logging
 from threading import Thread
+from time import sleep
 
 from evdev import InputDevice
 
@@ -48,7 +49,7 @@ class CardReader(Thread):
                             logging.info("Ошибка при блокировании считывателя")
                             pass
                 else:
-                    pass
+                    sleep(0.5)
         except SystemExit:
             pass
         except KeyboardInterrupt:
