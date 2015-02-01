@@ -4,7 +4,7 @@ import logging
 from time import sleep
 from datetime import datetime, date, timedelta
 import signal
-from os import getuid
+from os import getuid, remove, path
 
 from dialog import Dialog
 from pymongo.errors import PyMongoError
@@ -31,6 +31,7 @@ APPLICATION_LOG = 'application.log'
 
 """
 
+
 class Main:
     def __init__(self):
         logging.basicConfig(format='%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s]  %(message)s',
@@ -38,8 +39,11 @@ class Main:
                             filename=APPLICATION_LOG)
         self.dialog = Dialog(dialog='dialog')
         self.visits_logger = VisitsLogger()
+        with open(APPLICATION_LOG, mode='a') as log:
+            log.write('-------------------------------------------------- \n')
         logging.info("Приложение запущено, версия {}".format(__version__))
         if getuid() != 0:
+            logging.error("Попытка запуска без прав root")
             self.dialog.msgbox("Необходим запуск с правами root! \n" +
                                "Работа завершена",
                                width=0,
@@ -57,24 +61,38 @@ class Main:
         try:
             credentials = None
             if self.settings.get_db_option(Settings.DB_USER):
+                logging.info("Запрос пароля к БД")
+                code, password = self.dialog.passwordbox(
+                    "Пароль для доступа к БД".format(self.settings.get_db_option(Settings.DB_USER)),
+                    width=0,
+                    height=0,
+                    insecure=True)
+                if code != Dialog.OK:
+                    logging.error("Пароль к БД не был введен!")
+                    self.dialog.msgbox("Пароль к БД не введен! \n" +
+                                       "Работа завершена",
+                                       width=0,
+                                       height=0)
+                    exit(0)
                 credentials = {
                     'user': self.settings.get_db_option(Settings.DB_USER),
-                    'password': self.settings.get_db_option(Settings.DB_PASSWORD)
+                    'password': password
                 }
-            self.connector = DatabaseConnector(self.settings.get_db_option(Settings.DB_HOST),
-                                               int(self.settings.get_db_option(Settings.DB_PORT)),
-                                               self.settings.get_db_option(Settings.DB_NAME),
-                                               self.settings.get_db_option(Settings.DB_COLLECTION),
-                                               credentials)
+            self.db = DatabaseConnector(self.settings.get_db_option(Settings.DB_HOST),
+                                        int(self.settings.get_db_option(Settings.DB_PORT)),
+                                        self.settings.get_db_option(Settings.DB_NAME),
+                                        self.settings.get_db_option(Settings.DB_COLLECTION),
+                                        credentials)
         except PyMongoError as e:
             logging.error("Ошибка входа с текущими настройками подключения к БД!")
-            logging.error("Ошибка: ".format(e))
+            logging.error("Ошибка: {}".format(e))
             self.dialog.msgbox("Ошибка входа с текущими настройками подключения к БД \n" +
                                "Работа завершена",
                                width=0,
                                height=0)
             exit(0)
-        if not self.connector.has_users():
+        if not self.db.has_users():
+            logging.info("Пользователи не найдены, будет создан аккаунт разработчика")
             if not self.add_developer():
                 logging.error("Ошибка при создании пользователя!")
                 self.dialog.msgbox("Пользователь не был создан! \n" +
@@ -117,7 +135,7 @@ class Main:
                          name=name,
                          access=AccessLevel.developer,
                          expire=expire)
-        self.connector.add_user(user)
+        self.db.add_user(user)
         self.dialog.set_background_title("Пользователь создан")
         self.show_user_info(user)
         return True
@@ -133,7 +151,7 @@ class Main:
         code, card_id = self.request_card("Приложите карту нового пользователя...")
         if code != Dialog.OK:
             return
-        if self.connector.get_user(card_id):
+        if self.db.get_user(card_id):
             self.dialog.msgbox("Ошибка: данная карта уже зарегистрирована",
                                width=0,
                                height=0)
@@ -163,7 +181,7 @@ class Main:
                          name=name,
                          access=access,
                          expire=expire)
-        self.connector.add_user(user)
+        self.db.add_user(user)
         self.dialog.set_background_title("Пользователь создан")
         self.show_user_info(user)
 
@@ -178,7 +196,7 @@ class Main:
         code, card_id = self.request_card("Приложите карту гостя...")
         if code != Dialog.OK:
             return
-        if self.connector.get_user(card_id):
+        if self.db.get_user(card_id):
             self.dialog.msgbox("Ошибка: данная карта уже зарегистрирована",
                                width=0,
                                height=0)
@@ -191,7 +209,7 @@ class Main:
                          name=name,
                          access=access,
                          expire=expire)
-        self.connector.add_user(user)
+        self.db.add_user(user)
         self.dialog.set_background_title("Гость создан")
         self.show_user_info(user)
 
@@ -200,6 +218,7 @@ class Main:
     # region Работа с пользователями
 
     def create_settings(self):
+        logging.info("Создание файла настроек")
         self.dialog.msgbox("Будет создан файл настроек",
                            width=0,
                            height=0)
@@ -207,11 +226,11 @@ class Main:
                                         width=0,
                                         height=0,
                                         elements=[
-                                            ("Хост:", 1, 1, 'localhost', 1, len("Коллекция:") + 2, 20, 20),
-                                            ("Порт:", 2, 1, '27017', 2, len("Коллекция:") + 2, 20, 20),
-                                            ("Логин:", 3, 1, '', 3, len("Коллекция:") + 2, 20, 20),
-                                            ("База:", 4, 1, 'rfid', 4, len("Коллекция:") + 2, 20, 20),
-                                            ("Коллекция:", 5, 1, 'rlab', 5, len("Коллекция:") + 2, 20, 20)
+                                            ("Хост:", 1, 1, 'localhost', 1, len("Пользователь БД:") + 2, 20, 20),
+                                            ("Порт:", 2, 1, '27017', 2, len("Пользователь БД:") + 2, 20, 20),
+                                            ("Пользователь БД:", 3, 1, '', 3, len("Пользователь БД:") + 2, 20, 20),
+                                            ("База:", 4, 1, 'rfid', 4, len("Пользователь БД:") + 2, 20, 20),
+                                            ("Коллекция:", 5, 1, 'rlab', 5, len("Пользователь БД:") + 2, 20, 20)
                                         ])
         if code != Dialog.OK:
             return False
@@ -222,20 +241,19 @@ class Main:
         self.settings.set_db_option(Settings.DB_COLLECTION, values[4])
         if self.settings.get_db_option(Settings.DB_USER):
             code, password = self.dialog.passwordbox(
-                "Пароль пользователя {}".format(self.settings.get_db_option(Settings.DB_USER)),
+                "Пароль для доступа к БД",
                 width=0,
                 height=0,
                 insecure=True)
             if code != Dialog.OK:
                 return False
-            self.settings.set_db_option(Settings.DB_PASSWORD, password)
             DatabaseConnector.add_db_admin(
                 self.settings.get_db_option(Settings.DB_HOST),
                 int(self.settings.get_db_option(Settings.DB_PORT)),
                 self.settings.get_db_option(Settings.DB_NAME),
                 {
                     'user': self.settings.get_db_option(Settings.DB_USER),
-                    'password': self.settings.get_db_option(Settings.DB_PASSWORD)
+                    'password': password
                 })
         code, values = self.dialog.form("Задержка (в секундах)",
                                         width=0,
@@ -288,7 +306,7 @@ class Main:
             else:
                 return False
         self.operator.update_password(password)
-        self.connector.update_user(self.operator)
+        self.db.update_user(self.operator)
         logging.info("Пароль пользователя {} с правами доступа {} изменен".format(
             self.operator.name,
             str(self.operator.access)))
@@ -310,7 +328,7 @@ class Main:
                            height=0)
 
     def edit_all_users(self):
-        users = self.connector.get_all_users()
+        users = self.db.get_all_users()
         code, tag = self.dialog.menu("Выберите пользователя",
                                      width=0,
                                      height=0,
@@ -338,7 +356,7 @@ class Main:
                                  width=0,
                                  height=0)
         if code == Dialog.OK:
-            self.connector.remove_user(user, self.operator.name)
+            self.db.remove_user(user, self.operator.name)
 
     def toggle_user(self, user):
         if self.operator.access.value < user.access.value:
@@ -352,7 +370,7 @@ class Main:
                                  height=0)
         if code == Dialog.OK:
             user.active = not user.active
-            self.connector.update_user(user)
+            self.db.update_user(user)
 
     # endregion
 
@@ -364,7 +382,7 @@ class Main:
 
             code, card_id = self.request_card("Приложите карту...")
             if code == Dialog.OK:
-                self.operator = self.connector.get_user(card_id)
+                self.operator = self.db.get_user(card_id)
                 if not self.operator:
                     self.visits_logger.wrong_id(card_id)
                     self.dialog.infobox("Карта отклонена! \n" +
@@ -407,7 +425,7 @@ class Main:
         while True:
             code, card_id = self.request_card("Приложите карту повышенного доступа")
             if code == Dialog.OK:
-                self.operator = self.connector.get_user(card_id)
+                self.operator = self.db.get_user(card_id)
                 if not self.operator:
                     self.dialog.infobox("Карта отклонена! \n" +
                                         "Запись добавлена в лог",
@@ -508,10 +526,13 @@ class Main:
             choices.extend([
                 "Добавление пользователя",
                 "Редактирование пользователей",
-                "Закрыть помещение"])
+                "Закрыть помещение",
+                "Очистка лога посещений"])
         if self.operator.access.value >= AccessLevel.developer.value:
             choices.extend([
-                "Просмотр системных логов",
+                "Ограничение ведения логов",
+                "Просмотр системного лога",
+                "Очистка системного лога",
                 "Очистка БД",
                 "Завершение программы"])
         code, tag = self.dialog.menu("Выберите действие",
@@ -526,7 +547,10 @@ class Main:
             lambda: self.add_user(),
             lambda: self.edit_all_users(),
             lambda: self.lock(),
+            lambda: self.clean_visits_log(),
+            lambda: self.set_visit_log_limitations(),
             lambda: self.show_app_log(),
+            lambda: self.clean_app_log(),
             lambda: self.clean_db(),
             lambda: self.exit()
         ][int(tag) - 1]()
@@ -541,18 +565,20 @@ class Main:
             self.operator.name,
             str(self.operator.access)
         ))
-        self.dialog.textbox(APPLICATION_LOG,
-                            width=0,
-                            height=0)
+        if path.exists(APPLICATION_LOG):
+            self.dialog.textbox(APPLICATION_LOG,
+                                width=0,
+                                height=0)
 
     def show_visits_log(self):
         logging.info("Пользователь {} с правами доступа '{}' просматривает лог посещений".format(
             self.operator.name,
             str(self.operator.access)
         ))
-        self.dialog.textbox(VisitsLogger.FILENAME,
-                            width=0,
-                            height=0)
+        if path.exists(VisitsLogger.VISITS_LOG):
+            self.dialog.textbox(VisitsLogger.VISITS_LOG,
+                                width=0,
+                                height=0)
 
     def request_card(self, title, message=''):
         self.is_waiting_card = True
@@ -570,7 +596,68 @@ class Main:
         exit(0)
 
     def clean_db(self):
+        logging.info("Попытка очистки БД пользователем {}".format(self.operator))
+        code = self.dialog.yesno("Вы уверены? Операция очистки БД необратима! \n" +
+                                 "Программа будет завершена после очистки БД",
+                                 width=0,
+                                 height=0)
+        if code != Dialog.OK:
+            return
+        code, password = self.dialog.passwordbox("Пароль:",
+                                                 width=0,
+                                                 height=0,
+                                                 title="Подтверждение доступа",
+                                                 insecure=True)
+        if code != Dialog.OK:
+            return
+        if not self.operator.check_password(password):
+            logging.info("Пользователь {} с правами доступа '{}' неверно ввел пароль".format(
+                self.operator.name,
+                str(self.operator.access)
+            ))
+            self.dialog.infobox("Неверное сочетание логина и пароля \n" +
+                                "Запись добавлена в лог",
+                                width=0,
+                                height=0)
+            self.visits_logger.wrong_password(self.operator)
+            sleep(self.settings.get_delay_option(Settings.DELAY_ERROR))
+            return
+        self.db.drop_collection()
+        self.db.drop_db_user(self.settings.get_db_option(Settings.DB_USER))
+        if path.exists(APPLICATION_LOG):
+            remove(APPLICATION_LOG)
+        if path.exists(VisitsLogger.VISITS_LOG):
+            remove(VisitsLogger.VISITS_LOG)
+        if path.exists(Settings.FILENAME):
+            remove(Settings.FILENAME)
+        exit(0)
+
+    def set_visit_log_limitations(self):
         pass
+
+    def clean_app_log(self):
+        if not path.exists(APPLICATION_LOG):
+            return
+        code = self.dialog.yesno("Вы уверены? \n" +
+                                 "Программа будет завершена после очистки лога",
+                                 width=0,
+                                 height=0)
+        if code != Dialog.OK:
+            return
+        remove(APPLICATION_LOG)
+        exit(0)
+
+    def clean_visits_log(self):
+        if not path.exists(VisitsLogger.VISITS_LOG):
+            return
+        code = self.dialog.yesno("Вы уверены?",
+                                 width=0,
+                                 height=0)
+        if code != Dialog.OK:
+            return
+        remove(VisitsLogger.VISITS_LOG)
+        if self.operator.access.value < AccessLevel.developer.value:
+            logging.info("Пользователь {} очистил лог посещений".format(self.operator.name))
 
 
 signals = [{'orig': signal.signal(signal.SIGINT, signal.SIG_IGN), 'signal': signal.SIGINT},

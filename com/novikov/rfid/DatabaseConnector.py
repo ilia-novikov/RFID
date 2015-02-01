@@ -67,3 +67,9 @@ class DatabaseConnector:
 
     def get_all_users(self):
         return [UserModel(model=x) for x in self.__collection.find()]
+
+    def drop_collection(self):
+        self.__collection.drop()
+
+    def drop_db_user(self, user):
+        self.__db.remove_user(user)

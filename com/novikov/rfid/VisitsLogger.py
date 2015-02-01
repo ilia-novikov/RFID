@@ -7,9 +7,11 @@ __author__ = 'Ilia Novikov'
 
 
 class VisitsLogger:
-    FILENAME = 'visits.log'
+    VISITS_LOG = 'visits.log'
 
     def __init__(self):
+        with open(self.VISITS_LOG, mode='a') as log:
+            log.write('-------------------------------------------------- \n')
         self.__append("Приложение запущено, версия: {} \n".format(__version__))
 
     @staticmethod
@@ -17,7 +19,7 @@ class VisitsLogger:
         return datetime.now().strftime('%a, %d %B %Y, %H:%M:%S: ')
 
     def __append(self, message):
-        with open(self.FILENAME, mode='a') as visits:
+        with open(self.VISITS_LOG, mode='a') as visits:
             visits.write(self.__get_datetime() + message)
 
     def visit(self, user: UserModel):
