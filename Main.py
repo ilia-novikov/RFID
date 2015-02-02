@@ -59,7 +59,7 @@ class Main:
                     width=0,
                     height=0,
                     insecure=True)
-                if code != Dialog.OK:
+                if code != Dialog.OK or not password:
                     logging.error("Пароль к БД не был введен!")
                     self.dialog.msgbox("Пароль к БД не введен! \n" +
                                        "Работа завершена",
@@ -529,14 +529,14 @@ class Main:
             choices.extend([
                 "Добавление пользователя",
                 "Редактирование пользователей",
-                "Закрыть помещение",
-                "Очистка лога посещений"])
+                "Закрыть помещение"])
         if self.operator.access.value >= AccessLevel.developer.value:
             choices.extend([
                 "Ограничение ведения логов",
                 "Просмотр системного лога",
+                "Очистка лога посещений",
                 "Очистка системного лога",
-                "Очистка БД",
+                "Очистка настроек и БД",
                 "Завершение программы"])
         code, tag = self.dialog.menu("Выберите действие",
                                      choices=[('{}'.format(choices.index(x) + 1), x) for x in choices])
@@ -550,9 +550,9 @@ class Main:
             lambda: self.add_user(),
             lambda: self.edit_all_users(),
             lambda: self.lock(),
-            lambda: self.clean_visits_log(),
             lambda: self.set_visit_log_limitations(),
             lambda: self.show_app_log(),
+            lambda: self.clean_visits_log(),
             lambda: self.clean_app_log(),
             lambda: self.clean_db(),
             lambda: self.exit()
