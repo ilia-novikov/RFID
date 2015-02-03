@@ -97,7 +97,8 @@ class Main:
         self.serial = SerialConnector(self.settings.get_uart_path(), 9600)
         self.was_unlocked = False
         self.is_waiting_card = False
-        CardReader(self).start()
+        self.card_reader = CardReader(self)
+        self.card_reader.start()
         self.standard_mode()
 
     # region Создание пользователей
@@ -111,9 +112,7 @@ class Main:
         if code != Dialog.OK:
             return False
 
-        code, card_id = self.request_card("Приложите карту разработчика")
-        if code != Dialog.OK:
-            return False
+        card_id = self.request_card("Приложите карту разработчика")
         code, raw_date = self.dialog.calendar("Введите дату окончания действия аккаунта:",
                                               width=0,
                                               height=0,
@@ -141,9 +140,7 @@ class Main:
                                           init="Иван Петров")
         if code != Dialog.OK:
             return
-        code, card_id = self.request_card("Приложите карту нового пользователя...")
-        if code != Dialog.OK:
-            return
+        card_id = self.request_card("Приложите карту нового пользователя...")
         if self.db.get_user(card_id):
             self.dialog.msgbox("Ошибка: данная карта уже зарегистрирована",
                                width=0,
@@ -186,9 +183,7 @@ class Main:
                                           init="Иван Петров")
         if code != Dialog.OK:
             return
-        code, card_id = self.request_card("Приложите карту гостя...")
-        if code != Dialog.OK:
-            return
+        card_id = self.request_card("Приложите карту гостя...")
         if self.db.get_user(card_id):
             self.dialog.msgbox("Ошибка: данная карта уже зарегистрирована",
                                width=0,
@@ -373,104 +368,98 @@ class Main:
         while True:
             self.serial.standard()
             self.dialog.set_background_title("Рабочий режим")
-            code, card_id = self.request_card("Приложите карту...")
-            if code == Dialog.OK:
-                self.operator = self.db.get_user(card_id)
-                if not self.operator:
-                    self.serial.error()
-                    self.visits_logger.wrong_id(card_id)
-                    self.dialog.infobox("Карта отклонена! \n" +
-                                        "Запись добавлена в лог",
-                                        width=0,
-                                        height=0)
-                    sleep(self.settings.get_delay_option(Settings.DELAY_ERROR))
-                elif not self.operator.active:
-                    self.serial.error()
-                    self.visits_logger.inactive_card(self.operator)
-                    self.dialog.infobox("Карта заблокирована! \n" +
-                                        "Запись добавлена в лог",
-                                        width=0,
-                                        height=0)
-                    sleep(self.settings.get_delay_option(Settings.DELAY_ERROR))
-                elif datetime.now() >= self.operator.expire:
-                    self.serial.error()
-                    self.visits_logger.inactive_card(self.operator)
-                    self.dialog.infobox("Карта устарела! \n" +
-                                        "Запись добавлена в лог",
-                                        width=0,
-                                        height=0)
-                    sleep(self.settings.get_delay_option(Settings.DELAY_ERROR))
-                else:
-                    self.serial.open()
-                    self.visits_logger.visit(self.operator)
-                    code = self.dialog.pause("Авторизация успешна \n" +
-                                             "Пользователь: {} \n".format(self.operator.name) +
-                                             "Уровень доступа: {} \n".format(str(self.operator.access)),
-                                             seconds=self.settings.get_delay_option(Settings.DELAY_SUCCESS),
-                                             title="ОК",
-                                             extra_button=True,
-                                             extra_label="Консоль")
-                    if code == Dialog.EXTRA:
-                        self.serial.maintenance()
-                        self.show_control_window()
-            if code == Dialog.ESC or code == Dialog.CANCEL:
-                logging.info("Попытка завершить программу из основного режима")
+            card_id = self.request_card("Приложите карту...")
+            self.operator = self.db.get_user(card_id)
+            if not self.operator:
+                self.serial.error()
+                self.visits_logger.wrong_id(card_id)
+                self.dialog.infobox("Карта отклонена! \n" +
+                                    "Запись добавлена в лог",
+                                    width=0,
+                                    height=0)
+                sleep(self.settings.get_delay_option(Settings.DELAY_ERROR))
+            elif not self.operator.active:
+                self.serial.error()
+                self.visits_logger.inactive_card(self.operator)
+                self.dialog.infobox("Карта заблокирована! \n" +
+                                    "Запись добавлена в лог",
+                                    width=0,
+                                    height=0)
+                sleep(self.settings.get_delay_option(Settings.DELAY_ERROR))
+            elif datetime.now() >= self.operator.expire:
+                self.serial.error()
+                self.visits_logger.inactive_card(self.operator)
+                self.dialog.infobox("Карта устарела! \n" +
+                                    "Запись добавлена в лог",
+                                    width=0,
+                                    height=0)
+                sleep(self.settings.get_delay_option(Settings.DELAY_ERROR))
+            else:
+                self.serial.open()
+                self.visits_logger.visit(self.operator)
+                code = self.dialog.pause("Авторизация успешна \n" +
+                                         "Пользователь: {} \n".format(self.operator.name) +
+                                         "Уровень доступа: {} \n".format(str(self.operator.access)),
+                                         seconds=self.settings.get_delay_option(Settings.DELAY_SUCCESS),
+                                         title="ОК",
+                                         extra_button=True,
+                                         extra_label="Консоль")
+                if code == Dialog.EXTRA:
+                    self.serial.maintenance()
+                    self.show_control_window()
 
     def lock_mode(self):
         self.dialog.set_background_title("Установлена блокировка")
         while True:
             self.serial.lock()
-            code, card_id = self.request_card("Приложите карту повышенного доступа")
-            if code == Dialog.OK:
-                self.operator = self.db.get_user(card_id)
-                if not self.operator:
-                    self.serial.error()
-                    self.dialog.infobox("Карта отклонена! \n" +
-                                        "Запись добавлена в лог",
-                                        width=0,
-                                        height=0)
-                    self.visits_logger.wrong_id(card_id)
-                    sleep(self.settings.get_delay_option(Settings.DELAY_ERROR))
-                elif not self.operator.active:
-                    self.serial.error()
-                    self.visits_logger.inactive_card(self.operator)
-                    self.dialog.infobox("Карта заблокирована! \n" +
-                                        "Запись добавлена в лог",
-                                        width=0,
-                                        height=0)
-                    sleep(self.settings.get_delay_option(Settings.DELAY_ERROR))
-                elif datetime.now() >= self.operator.expire:
-                    self.serial.error()
-                    self.visits_logger.inactive_card(self.operator)
-                    self.dialog.infobox("Карта устарела! \n" +
-                                        "Запись добавлена в лог",
-                                        width=0,
-                                        height=0)
-                    sleep(self.settings.get_delay_option(Settings.DELAY_ERROR))
-                elif self.operator.access.value <= AccessLevel.common.value:
-                    self.serial.error()
-                    self.dialog.infobox("Низкий уровень доступа! \n" +
-                                        "Запись добавлена в лог",
-                                        width=0,
-                                        height=0)
-                    self.visits_logger.wrong_access(self.operator)
-                    sleep(self.settings.get_delay_option(Settings.DELAY_ERROR))
-                else:
-                    self.serial.open()
-                    code = self.dialog.pause("Блокировка снята \n" +
-                                             "Пользователь: {} \n".format(self.operator.name) +
-                                             "Уровень доступа: {} \n".format(str(self.operator.access)),
-                                             seconds=self.settings.get_delay_option(Settings.DELAY_SUCCESS),
-                                             title="ОК",
-                                             extra_button=True,
-                                             extra_label="Консоль")
-                    self.visits_logger.visit(self.operator)
-                    if code == Dialog.EXTRA:
-                        self.serial.maintenance()
-                        self.show_control_window()
-                    return
-            if code == Dialog.ESC or code == Dialog.CANCEL:
-                logging.info("Попытка завершить программу из защищенного режима")
+            card_id = self.request_card("Приложите карту повышенного доступа")
+            self.operator = self.db.get_user(card_id)
+            if not self.operator:
+                self.serial.error()
+                self.dialog.infobox("Карта отклонена! \n" +
+                                    "Запись добавлена в лог",
+                                    width=0,
+                                    height=0)
+                self.visits_logger.wrong_id(card_id)
+                sleep(self.settings.get_delay_option(Settings.DELAY_ERROR))
+            elif not self.operator.active:
+                self.serial.error()
+                self.visits_logger.inactive_card(self.operator)
+                self.dialog.infobox("Карта заблокирована! \n" +
+                                    "Запись добавлена в лог",
+                                    width=0,
+                                    height=0)
+                sleep(self.settings.get_delay_option(Settings.DELAY_ERROR))
+            elif datetime.now() >= self.operator.expire:
+                self.serial.error()
+                self.visits_logger.inactive_card(self.operator)
+                self.dialog.infobox("Карта устарела! \n" +
+                                    "Запись добавлена в лог",
+                                    width=0,
+                                    height=0)
+                sleep(self.settings.get_delay_option(Settings.DELAY_ERROR))
+            elif self.operator.access.value <= AccessLevel.common.value:
+                self.serial.error()
+                self.dialog.infobox("Низкий уровень доступа! \n" +
+                                    "Запись добавлена в лог",
+                                    width=0,
+                                    height=0)
+                self.visits_logger.wrong_access(self.operator)
+                sleep(self.settings.get_delay_option(Settings.DELAY_ERROR))
+            else:
+                self.serial.open()
+                code = self.dialog.pause("Блокировка снята \n" +
+                                         "Пользователь: {} \n".format(self.operator.name) +
+                                         "Уровень доступа: {} \n".format(str(self.operator.access)),
+                                         seconds=self.settings.get_delay_option(Settings.DELAY_SUCCESS),
+                                         title="ОК",
+                                         extra_button=True,
+                                         extra_label="Консоль")
+                self.visits_logger.visit(self.operator)
+                if code == Dialog.EXTRA:
+                    self.serial.maintenance()
+                    self.show_control_window()
+                return
 
     def lock(self):
         code = self.dialog.yesno("Вы уверены? \n",
@@ -583,17 +572,6 @@ class Main:
                                 width=0,
                                 height=0)
 
-    def request_card(self, title, message=''):
-        self.is_waiting_card = True
-        code, card_id = self.dialog.passwordbox(message,
-                                                width=0,
-                                                height=0,
-                                                title=title)
-        self.is_waiting_card = False
-        if not card_id:
-            code = Dialog.ESC
-        return code, card_id
-
     def clean_db(self):
         logging.info("Попытка очистки БД пользователем {}".format(self.operator))
         code = self.dialog.yesno("Вы уверены? Операция очистки БД необратима! \n" +
@@ -663,6 +641,25 @@ class Main:
     def exit(self):
         logging.info("Разработчик завершил выполнение программы: {}".format(self.operator.name))
         exit(1)
+
+    def request_card(self, title):
+        self.is_waiting_card = True
+        if self.card_reader.error:
+            self.dialog.msgbox("Ошибка доступа к считывателю карт. \n" +
+                               "Программа будет завершена",
+                               width=0,
+                               height=9)
+            exit(0)
+        while not self.card_reader.card_id:
+            self.dialog.infobox(title,
+                                width=0,
+                                height=0)
+            sleep(100.0 / 1000.0)
+        self.is_waiting_card = False
+        card_id = self.card_reader.card_id
+        self.card_reader.card_id = ''
+        return card_id
+
 
 signals = [{'orig': signal.signal(signal.SIGINT, signal.SIG_IGN), 'signal': signal.SIGINT},
            {'orig': signal.signal(signal.SIGQUIT, signal.SIG_IGN), 'signal': signal.SIGQUIT},

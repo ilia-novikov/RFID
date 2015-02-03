@@ -18,7 +18,7 @@ class SerialConnector:
 
     def __init__(self, device, speed):
         logging.info("Подключение к UART-устройству {} на скорости {} бод".format(
-            device if device else '-',
+            device if device else '???',
             speed
         ))
         self.device = device

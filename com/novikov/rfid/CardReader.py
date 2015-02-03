@@ -1,61 +1,61 @@
 import logging
 import os
 from threading import Thread
-from time import sleep
 
-from evdev import InputDevice
+from evdev import InputDevice, KeyEvent
+from evdev import ecodes
 
 
-__author__ = 'Ilia Novikov'
+__author__ = 'ilia'
 
 
 class CardReader(Thread):
+    __scan_codes = {
+        2: 1,
+        3: 2,
+        4: 3,
+        5: 4,
+        6: 5,
+        7: 6,
+        8: 7,
+        9: 8,
+        10: 9,
+        11: 0,
+        28: 'enter'
+    }
+
     def __init__(self, parent):
         Thread.__init__(self)
         self.daemon = True
         self.parent = parent
-        self.name = "CardReaderThread"
+        self.error = False
+        self.card_id = ''
 
     def run(self):
         path = '/dev/input/by-id/usb-Sycreader_RFID_Technology_Co.__Ltd_SYC_ID_IC_USB_Reader_08FF20140315-event-kbd'
         if not os.path.exists(path):
-            logging.error("Считыватель RFID не подключен")
+            logging.error("Считыватель карт не подключен")
+            self.error = True
             return
         device = InputDevice(path)
-        is_locked = False
+        device.grab()
         try:
-            while True:
-                if self.parent.is_waiting_card and is_locked:
-                    attempt = 0
-                    while True:
-                        try:
-                            attempt += 1
-                            logging.info("Попытка разблокировать считыватель карт ({})".format(attempt))
-                            device.ungrab()
-                            logging.info("Попытка удачна, считыватель разблокирован")
-                            attempt = 0
-                            is_locked = False
-                            break
-                        except OSError:
-                            logging.info("Ошибка при разблокировании считывателя")
-                            pass
-                elif not self.parent.is_waiting_card and not is_locked:
-                    attempt = 0
-                    while True:
-                        try:
-                            attempt += 1
-                            logging.info("Попытка блокировать считыватель карт ({})".format(attempt))
-                            device.grab()
-                            logging.info("Попытка удачна, считыватель блокирован")
-                            is_locked = True
-                            break
-                        except OSError:
-                            logging.info("Ошибка при блокировании считывателя")
-                            pass
-                else:
-                    sleep(0.5)
-        except SystemExit:
-            pass
+            buffer = []
+            for event in device.read_loop():
+                if event.type != ecodes.EV_KEY:
+                    continue
+                press = KeyEvent(event)
+                if press.keystate != KeyEvent.key_down:
+                    continue
+                char = self.__scan_codes[press.scancode]
+                if char == 'enter':
+                    if not self.parent.is_waiting_card:
+                        buffer.clear()
+                        continue
+                    self.card_id = ''.join(buffer)
+                    buffer.clear()
+                    continue
+                buffer.append(str(char))
         except KeyboardInterrupt:
             pass
         finally:
