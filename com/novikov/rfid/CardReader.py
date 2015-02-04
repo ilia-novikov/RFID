@@ -56,8 +56,8 @@ class CardReader(Thread):
                     buffer.clear()
                     continue
                 buffer.append(str(char))
-        except KeyboardInterrupt:
-            pass
+        except OSError as e:
+            logging.error("Ошибка считывателя карт: {}".format(e))
         finally:
             device.ungrab()
             device.close()

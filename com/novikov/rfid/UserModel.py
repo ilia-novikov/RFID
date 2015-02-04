@@ -47,6 +47,9 @@ class UserModel:
     def update_password(self, password):
         self.__hash = self.__get_hash(password)
 
+    def reset_password(self):
+        self.__hash = None
+
     def has_password(self):
         return self.__hash is not None
 

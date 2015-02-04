@@ -76,8 +76,7 @@ class Main:
                                         self.settings.get_db_option(Settings.DB_COLLECTION),
                                         credentials)
         except PyMongoError as e:
-            logging.error("Ошибка входа с текущими настройками подключения к БД!")
-            logging.error("Ошибка: {}".format(e))
+            logging.error("Ошибка входа с текущими настройками подключения к БД: {}".format(e))
             self.dialog.msgbox("Ошибка входа с текущими настройками подключения к БД \n" +
                                "Работа завершена",
                                width=0,
@@ -327,6 +326,7 @@ class Main:
         toggle_active_message = "Заблокировать" if user.active else "Снять блокировку"
         actions = [
             {'name': "Просмотреть информацию", 'action': lambda x: self.show_user_info(x)},
+            {'name': "Сбросить пароль", 'action': lambda x: self.reset_password(x)},
             {'name': toggle_active_message, 'action': lambda x: self.toggle_user(x)},
             {'name': "Удалить пользователя", 'action': lambda x: self.delete_user(x)}
         ]
@@ -508,7 +508,9 @@ class Main:
                     self.visits_logger.wrong_password(self.operator)
                     sleep(self.settings.get_delay_option(Settings.DELAY_ERROR))
                     return
-        choices = ["Просмотр сведений об учетной записи"]
+        choices = [
+            "Просмотр сведений об учетной записи",
+            "Изменить пароль"]
         if self.operator.access.value >= AccessLevel.common.value:
             choices.extend([
                 "Просмотр лога посещений",
@@ -533,6 +535,7 @@ class Main:
             return
         [
             lambda: self.show_user_info(self.operator),
+            lambda: self.create_password(),
             lambda: self.show_visits_log(),
             lambda: self.add_guest(),
             lambda: self.create_password(),
@@ -643,6 +646,9 @@ class Main:
         exit(1)
 
     def request_card(self, title):
+        self.dialog.infobox(title,
+                            width=0,
+                            height=0)
         self.is_waiting_card = True
         if self.card_reader.error:
             self.dialog.msgbox("Ошибка доступа к считывателю карт. \n" +
@@ -659,6 +665,24 @@ class Main:
         card_id = self.card_reader.card_id
         self.card_reader.card_id = ''
         return card_id
+
+    def reset_password(self, user: UserModel):
+        code = self.dialog.yesno("Вы уверены?",
+                                 width=0,
+                                 height=0)
+        if code != Dialog.OK:
+            return
+        logging.info("Пользователь {} с правами доступа {} сбросил пароль {} ({})".format(
+            self.operator.name,
+            str(self.operator.access),
+            user.name,
+            str(user.access)
+        ))
+        user.reset_password()
+        self.db.update_user(user)
+        self.dialog.msgbox("Пароль пользователя сброшен".format(
+            user.name
+        ))
 
 
 signals = [{'orig': signal.signal(signal.SIGINT, signal.SIG_IGN), 'signal': signal.SIGINT},
