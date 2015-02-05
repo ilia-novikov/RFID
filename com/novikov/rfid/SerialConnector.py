@@ -1,5 +1,6 @@
 import logging
 from time import sleep
+import struct
 
 from serial import Serial, SerialException
 
@@ -29,6 +30,7 @@ class SerialConnector:
             logging.error("UART-устройство не задано")
             return
         try:
+            data = struct.pack('!B', data)
             serial = Serial(self.device, self.speed, timeout=self.__TIMEOUT)
             serial.write(data)
             sleep(10.0 / 1000.0)
