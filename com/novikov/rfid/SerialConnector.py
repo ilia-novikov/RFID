@@ -30,9 +30,8 @@ class SerialConnector:
             return
         try:
             serial = Serial(self.device, self.speed, timeout=self.__TIMEOUT)
-            for item in data:
-                serial.write(item)
-                sleep(10.0 / 1000.0)
+            serial.write(data)
+            sleep(10.0 / 1000.0)
             serial.close()
         except SerialException as e:
             logging.error("Ошибка конфигурации UART-устройства: {}".format(e))
@@ -40,16 +39,17 @@ class SerialConnector:
             logging.error("Ошибка конфигурации UART-устройства: {}".format(e))
 
     def open(self):
-        self.__send([self.__CODE_OPEN, self.__CODE_LED_OK])
+        self.__send(self.__CODE_OPEN)
+        self.__send(self.__CODE_LED_OK)
 
     def standard(self):
-        self.__send([self.__CODE_IDLE])
+        self.__send(self.__CODE_IDLE)
 
     def lock(self):
-        self.__send([self.__CODE_LOCK])
+        self.__send(self.__CODE_LOCK)
 
     def error(self):
-        self.__send([self.__CODE_LED_FAIL])
+        self.__send(self.__CODE_LED_FAIL)
 
     def maintenance(self):
-        self.__send([self.__CODE_MAINTENANCE])
+        self.__send(self.__CODE_MAINTENANCE)
