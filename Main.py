@@ -646,17 +646,17 @@ class Main:
         exit(1)
 
     def request_card(self, title):
+        self.is_waiting_card = True
         self.dialog.infobox(title,
                             width=0,
                             height=0)
-        self.is_waiting_card = True
-        if self.card_reader.error:
-            self.dialog.msgbox("Ошибка доступа к считывателю карт. \n" +
-                               "Программа будет завершена",
-                               width=0,
-                               height=9)
-            exit(0)
         while not self.card_reader.card_id:
+            if self.card_reader.error:
+                self.dialog.msgbox("Ошибка доступа к считывателю карт. \n" +
+                                   "Программа будет завершена",
+                                   width=0,
+                                   height=9)
+                exit(0)
             self.dialog.infobox(title,
                                 width=0,
                                 height=0)
