@@ -33,15 +33,15 @@ class CardReader(Thread):
 
     def run(self):
         path = '/dev/input/by-id/usb-Sycreader_RFID_Technology_Co.__Ltd_SYC_ID_IC_USB_Reader_08FF20140315-event-kbd'
-        if not os.path.exists(path):
-            logging.error("Считыватель карт не подключен")
-            self.error = True
-            return
         device = InputDevice(path)
         device.grab()
         try:
             buffer = []
             for event in device.read_loop():
+                if not os.path.exists(path):
+                    logging.error("Считыватель карт не подключен")
+                    self.error = True
+                    return
                 if event.type != ecodes.EV_KEY:
                     continue
                 press = KeyEvent(event)
