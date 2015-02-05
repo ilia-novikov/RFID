@@ -38,6 +38,10 @@ class CardReader(Thread):
                     '/dev/input/' \
                     'by-id/' \
                     'usb-Sycreader_RFID_Technology_Co.__Ltd_SYC_ID_IC_USB_Reader_08FF20140315-event-kbd'
+                if not os.path.exists(path):
+                    logging.error("Считыватель карт не подключен")
+                    self.error = True
+                    return
                 device = InputDevice(path)
                 device.grab()
                 buffer = []
