@@ -32,35 +32,33 @@ class CardReader(Thread):
         self.card_id = ''
 
     def run(self):
-        path = '/dev/input/by-id/usb-Sycreader_RFID_Technology_Co.__Ltd_SYC_ID_IC_USB_Reader_08FF20140315-event-kbd'
-        device = InputDevice(path)
-        device.grab()
-        try:
-            buffer = []
-            for event in device.read_loop():
-                if not os.path.exists(path):
-                    logging.error("Считыватель карт не подключен")
-                    self.error = True
-                    return
-                if event.type != ecodes.EV_KEY:
-                    continue
-                press = KeyEvent(event)
-                if press.keystate != KeyEvent.key_down:
-                    continue
-                char = self.__scan_codes[press.scancode]
-                if char == 'enter':
-                    if not self.parent.is_waiting_card:
+        while True:
+            try:
+                path = \
+                    '/dev/input/' \
+                    'by-id/' \
+                    'usb-Sycreader_RFID_Technology_Co.__Ltd_SYC_ID_IC_USB_Reader_08FF20140315-event-kbd'
+                device = InputDevice(path)
+                device.grab()
+                buffer = []
+                for event in device.read_loop():
+                    if not os.path.exists(path):
+                        logging.error("Считыватель карт не подключен")
+                        self.error = True
+                        return
+                    if event.type != ecodes.EV_KEY:
+                        continue
+                    press = KeyEvent(event)
+                    if press.keystate != KeyEvent.key_down:
+                        continue
+                    char = self.__scan_codes[press.scancode]
+                    if char == 'enter':
+                        if not self.parent.is_waiting_card:
+                            buffer.clear()
+                            continue
+                        self.card_id = ''.join(buffer)
                         buffer.clear()
                         continue
-                    self.card_id = ''.join(buffer)
-                    buffer.clear()
-                    continue
-                buffer.append(str(char))
-            exit(3)
-        except OSError as e:
-            logging.error("Ошибка считывателя карт: {}".format(e))
-            exit(4)
-        finally:
-            exit(5)
-            device.ungrab()
-            device.close()
+                    buffer.append(str(char))
+            except Exception as e:
+                logging.error("Ошибка считывателя карт: {}".format(e))
