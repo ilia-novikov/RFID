@@ -5,6 +5,7 @@ from time import sleep
 from datetime import datetime, date, timedelta
 import signal
 from os import getuid, remove, path
+import sys
 
 from dialog import Dialog
 from pymongo.errors import PyMongoError
@@ -31,6 +32,7 @@ class Main:
                             filename=APPLICATION_LOG)
         self.dialog = Dialog(dialog='dialog')
         self.visits_logger = VisitsLogger()
+        self.debug = 'debug' in sys.argv
         with open(APPLICATION_LOG, mode='a') as log:
             log.write('-------------------------------------------------- \n')
         logging.info("Приложение запущено, версия {}".format(__version__))
@@ -41,6 +43,8 @@ class Main:
                                width=0,
                                height=0)
             exit(0)
+        if self.debug:
+            logging.info("Запуск в отладочном режиме")
         self.settings = Settings()
         if self.settings.is_first_run:
             if not self.create_settings():
@@ -96,8 +100,9 @@ class Main:
         self.serial = SerialConnector(self.settings.get_uart_path(), 9600)
         self.was_unlocked = False
         self.is_waiting_card = False
-        self.card_reader = CardReader(self)
-        self.card_reader.start()
+        if not self.debug:
+            self.card_reader = CardReader(self)
+            self.card_reader.start()
         self.standard_mode()
 
     # region Создание пользователей
@@ -646,17 +651,18 @@ class Main:
         exit(1)
 
     def request_card(self, title):
+        if self.debug:
+            code, result = None, None
+            while not result or code != Dialog.OK:
+                code, result = self.dialog.inputbox("Приложите карту (ОТЛАДКА)",
+                                                    width=0,
+                                                    height=0)
+            return result
         self.is_waiting_card = True
         self.dialog.infobox(title,
                             width=0,
                             height=0)
         while not self.card_reader.card_id:
-            if self.card_reader.error:
-                self.dialog.msgbox("Ошибка доступа к считывателю карт. \n" +
-                                   "Программа будет завершена",
-                                   width=0,
-                                   height=9)
-                exit(0)
             self.dialog.infobox(title,
                                 width=0,
                                 height=0)
