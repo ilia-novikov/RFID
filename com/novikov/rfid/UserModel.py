@@ -8,7 +8,7 @@ __author__ = 'Ilia Novikov'
 
 
 class UserModel:
-    ID = "ID"
+    CARDS = "CARDS"
     NAME = "NAME"
     ACCESS = "ACCESS"
     EXPIRE = "EXPIRE"
@@ -16,11 +16,11 @@ class UserModel:
     HASH = "HASH"
     ACTIVE = "ACTIVE"
 
-    def __init__(self, model=None, creator=None, card_id=None, name=None, access=AccessLevel.common,
+    def __init__(self, model=None, creator=None, cards=[], name=None, access=AccessLevel.common,
                  expire=datetime(2020, 1, 1), active=True):
         if model:
             self.creator = model[self.CREATOR]
-            self.id = model[self.ID]
+            self.cards = model[self.CARDS]
             self.name = model[self.NAME]
             self.access = AccessLevel(int(model[self.ACCESS]))
             self.expire = model[self.EXPIRE]
@@ -28,7 +28,7 @@ class UserModel:
             self.active = model[self.ACTIVE]
         else:
             self.creator = creator
-            self.id = card_id
+            self.cards = cards
             self.name = name
             self.access = access
             self.expire = expire
@@ -56,7 +56,7 @@ class UserModel:
     def get_model(self):
         return {
             self.CREATOR: self.creator,
-            self.ID: self.id,
+            self.CARDS: self.cards,
             self.NAME: self.name,
             self.ACCESS: self.access.value,
             self.EXPIRE: self.expire,

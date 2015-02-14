@@ -18,6 +18,15 @@ class DatabaseConnector:
             self.__db.authenticate(credentials['user'], credentials['password'])
         logging.info("Выбрана коллекция {}".format(collection))
         self.__collection = self.__db[collection]
+        self.migrate()
+
+    def migrate(self):
+        for item in self.__collection.find():
+            if 'ID' in item:
+                card_id = item['ID']
+                self.__collection.update({'ID': card_id},
+                                         {'$set': {UserModel.CARDS: [card_id]},
+                                          '$unset': {'ID': True}})
 
     @staticmethod
     def add_db_admin(hostname, port, database, credentials):
@@ -41,7 +50,7 @@ class DatabaseConnector:
 
     def get_user(self, card_id):
         logging.info("Поиск пользователя с ID {}".format(card_id))
-        user = self.__collection.find_one({UserModel.ID: card_id})
+        user = self.__collection.find_one({UserModel.CARDS: card_id})
         if user:
             logging.info("Пользователь найден")
             return UserModel(model=user)
@@ -62,7 +71,7 @@ class DatabaseConnector:
             "Изменение пользователя {} с правами {}".format(
                 user.name,
                 str(user.access)))
-        result = self.__collection.update({UserModel.ID: user.id}, user.get_model())
+        result = self.__collection.update({UserModel.CARDS: {'$in': user.cards}}, user.get_model())
         logging.info("Результат операции: {}".format(result))
 
     def get_all_users(self):

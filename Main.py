@@ -127,7 +127,7 @@ class Main:
             return False
         expire = datetime(day=raw_date[0], month=raw_date[1], year=raw_date[2])
         user = UserModel(creator=name,
-                         card_id=card_id,
+                         cards=[card_id],
                          name=name,
                          access=AccessLevel.developer,
                          expire=expire)
@@ -171,7 +171,7 @@ class Main:
             return
         expire = datetime(day=raw_date[0], month=raw_date[1], year=raw_date[2])
         user = UserModel(creator=self.operator.name,
-                         card_id=card_id,
+                         cards=[card_id],
                          name=name,
                          access=access,
                          expire=expire)
@@ -197,7 +197,7 @@ class Main:
         tomorrow = date.today() + timedelta(days=1)
         expire = datetime(tomorrow.year, tomorrow.month, tomorrow.day)
         user = UserModel(creator=self.operator.name,
-                         card_id=card_id,
+                         cards=[card_id],
                          name=name,
                          access=access,
                          expire=expire)
@@ -307,10 +307,12 @@ class Main:
     def show_user_info(self, user):
         info = ("Имя: {} \n" +
                 "Уровень доступа: {} \n" +
+                "Привязано карт: {} \n" +
                 "Истекает: {} \n" +
                 "Пароль: {}").format(
             user.name,
             str(user.access),
+            str(len(user.cards)),
             user.expire,
             'установлен'
             if user.has_password() else
@@ -331,6 +333,7 @@ class Main:
         toggle_active_message = "Заблокировать" if user.active else "Снять блокировку"
         actions = [
             {'name': "Просмотреть информацию", 'action': lambda x: self.show_user_info(x)},
+            {'name': "Привязанные карты", 'action': lambda x: self.edit_cards(x)},
             {'name': "Сбросить пароль", 'action': lambda x: self.reset_password(x)},
             {'name': toggle_active_message, 'action': lambda x: self.toggle_user(x)},
             {'name': "Удалить пользователя", 'action': lambda x: self.delete_user(x)}
@@ -689,6 +692,31 @@ class Main:
         self.dialog.msgbox("Пароль пользователя сброшен".format(
             user.name
         ))
+
+    def edit_cards(self, user: UserModel):
+        code, tag = self.dialog.menu("Выберите карту",
+                                     choices=[(str(user.cards.index(x) + 1), x) for x in user.cards],
+                                     width=0,
+                                     height=0)
+        if code != Dialog.OK:
+            return
+        card = user.cards[int(tag) - 1]
+        code = self.dialog.yesno("Отвязать карту {}?".format(card),
+                                 width=0,
+                                 height=0)
+        if code != Dialog.OK:
+            return
+        logging.info("Пользователь {} с правами доступа {} отвязал карту {} пользователя {}".format(
+            self.operator.name,
+            str(self.operator.access),
+            card,
+            user.name
+        ))
+        user.cards.remove(card)
+        self.db.update_user(user)
+        self.dialog.msgbox("Карта отвязана",
+                           width=0,
+                           height=0)
 
 
 signals = [{'orig': signal.signal(signal.SIGINT, signal.SIG_IGN), 'signal': signal.SIGINT},
