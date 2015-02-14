@@ -8,6 +8,7 @@ __author__ = 'Ilia Novikov'
 
 class VisitsLogger:
     VISITS_LOG = 'visits.log'
+    ILLEGAL_LOG = 'illegal.log'
 
     def __init__(self):
         with open(self.VISITS_LOG, mode='a') as log:
@@ -18,9 +19,17 @@ class VisitsLogger:
     def __get_datetime():
         return datetime.now().strftime('%a, %d %B %Y, %H:%M:%S: ')
 
+    @staticmethod
+    def __is_legal():
+        return 8 < datetime.now().hour < 22
+
     def __append(self, message):
-        with open(self.VISITS_LOG, mode='a') as visits:
-            visits.write(self.__get_datetime() + message)
+        if self.__is_legal():
+            with open(self.VISITS_LOG, mode='a') as visits:
+                visits.write(self.__get_datetime() + message)
+        else:
+            with open(self.ILLEGAL_LOG, mode='a') as illegal:
+                illegal.write(self.__get_datetime() + message)
 
     def visit(self, user: UserModel):
         base = "Вошел {}".format(user.name)

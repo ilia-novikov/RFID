@@ -150,8 +150,9 @@ class Main:
                                width=0,
                                height=0)
             return
-        choices = [AccessLevel.guest, AccessLevel.common, AccessLevel.privileged]
+        choices = [AccessLevel.guest, AccessLevel.common]
         if self.operator.access == AccessLevel.developer:
+            choices.append(AccessLevel.privileged)
             choices.append(AccessLevel.developer)
         code, tag = self.dialog.radiolist("Выберите уровень доступа:",
                                           width=0,
@@ -330,10 +331,17 @@ class Main:
         if code != Dialog.OK:
             return
         user = users[int(tag) - 1]
+        if user.access == AccessLevel.developer and user.cards != self.operator.cards:
+            self.dialog.msgbox("Прямое редактирование пользователя запрещено",
+                               width=0,
+                               height=0)
+            self.edit_all_users()
+            return
         toggle_active_message = "Заблокировать" if user.active else "Снять блокировку"
         actions = [
             {'name': "Просмотреть информацию", 'action': lambda x: self.show_user_info(x)},
-            {'name': "Привязанные карты", 'action': lambda x: self.edit_cards(x)},
+            {'name': "Добавить карту", 'action': lambda x: self.add_card(x)},
+            {'name': "Удалить карту", 'action': lambda x: self.remove_card(x)},
             {'name': "Сбросить пароль", 'action': lambda x: self.reset_password(x)},
             {'name': toggle_active_message, 'action': lambda x: self.toggle_user(x)},
             {'name': "Удалить пользователя", 'action': lambda x: self.delete_user(x)}
@@ -355,12 +363,6 @@ class Main:
             self.db.remove_user(user, self.operator.name)
 
     def toggle_user(self, user):
-        if self.operator.access.value < user.access.value:
-            self.dialog.msgbox("Недостаточно прав для блокировки {}. Необходим уровень доступа {}"
-                               .format(user.name, AccessLevel.developer),
-                               width=0,
-                               height=0)
-            return
         code = self.dialog.yesno("Вы уверены?",
                                  width=0,
                                  height=0)
@@ -368,6 +370,72 @@ class Main:
             user.active = not user.active
             self.db.update_user(user)
 
+    def reset_password(self, user: UserModel):
+        code = self.dialog.yesno("Вы уверены?",
+                                 width=0,
+                                 height=0)
+        if code != Dialog.OK:
+            return
+        logging.info("Пользователь {} с правами доступа {} сбросил пароль {} ({})".format(
+            self.operator.name,
+            str(self.operator.access),
+            user.name,
+            str(user.access)
+        ))
+        user.reset_password()
+        self.db.update_user(user)
+        self.dialog.msgbox("Пароль пользователя сброшен".format(
+            user.name
+        ))
+
+    def remove_card(self, user: UserModel):
+        if len(user.cards) == 1:
+            self.dialog.msgbox("Невозможно удалить единственную карту",
+                               width=0,
+                               height=0)
+            return
+        code, tag = self.dialog.menu("Выберите карту",
+                                     choices=[(str(user.cards.index(x) + 1), x) for x in user.cards],
+                                     width=0,
+                                     height=0)
+        if code != Dialog.OK:
+            return
+        card = user.cards[int(tag) - 1]
+        code = self.dialog.yesno("Отвязать карту {}?".format(card),
+                                 width=0,
+                                 height=0)
+        if code != Dialog.OK:
+            return
+        logging.info("Пользователь {} с правами доступа {} отвязал карту {} пользователя {}".format(
+            self.operator.name,
+            str(self.operator.access),
+            card,
+            user.name
+        ))
+        user.cards.remove(card)
+        self.db.update_user(user)
+        self.dialog.msgbox("Карта отвязана",
+                           width=0,
+                           height=0)
+
+    def add_card(self, user: UserModel):
+        card_id = self.request_card("Приложите новую карту...")
+        if self.db.get_user(card_id):
+            self.dialog.msgbox("Ошибка: данная карта уже зарегистрирована",
+                               width=0,
+                               height=0)
+            return
+        logging.info("Пользователь {} с правами доступа {} привязал карту {} для пользователя {}".format(
+            self.operator.name,
+            str(self.operator.access),
+            card_id,
+            user.name
+        ))
+        user.cards.append(card_id)
+        self.db.update_user(user)
+        self.dialog.msgbox("Карта привязана",
+                           width=0,
+                           height=0)
     # endregion
 
     # region Режимы работы
@@ -518,20 +586,18 @@ class Main:
                     return
         choices = [
             "Просмотр сведений об учетной записи",
-            "Изменить пароль"]
+            "Изменение пароля"]
         if self.operator.access.value >= AccessLevel.common.value:
             choices.extend([
                 "Просмотр лога посещений",
-                "Добавление гостя",
-                "Изменение пароля"])
+                "Добавление гостя"])
         if self.operator.access.value >= AccessLevel.privileged.value:
             choices.extend([
                 "Добавление пользователя",
-                "Редактирование пользователей",
-                "Закрыть помещение"])
+                "Закрытие помещения"])
         if self.operator.access.value >= AccessLevel.developer.value:
             choices.extend([
-                "Ограничение ведения логов",
+                "Редактирование пользователей",
                 "Просмотр системного лога",
                 "Очистка лога посещений",
                 "Очистка системного лога",
@@ -546,11 +612,9 @@ class Main:
             lambda: self.create_password(),
             lambda: self.show_visits_log(),
             lambda: self.add_guest(),
-            lambda: self.create_password(),
             lambda: self.add_user(),
-            lambda: self.edit_all_users(),
             lambda: self.lock(),
-            lambda: self.set_visit_log_limitations(),
+            lambda: self.edit_all_users(),
             lambda: self.show_app_log(),
             lambda: self.clean_visits_log(),
             lambda: self.clean_app_log(),
@@ -620,9 +684,6 @@ class Main:
             remove(Settings.FILENAME)
         exit(0)
 
-    def set_visit_log_limitations(self):
-        pass
-
     def clean_app_log(self):
         if not path.exists(APPLICATION_LOG):
             return
@@ -674,49 +735,6 @@ class Main:
         card_id = self.card_reader.card_id
         self.card_reader.card_id = ''
         return card_id
-
-    def reset_password(self, user: UserModel):
-        code = self.dialog.yesno("Вы уверены?",
-                                 width=0,
-                                 height=0)
-        if code != Dialog.OK:
-            return
-        logging.info("Пользователь {} с правами доступа {} сбросил пароль {} ({})".format(
-            self.operator.name,
-            str(self.operator.access),
-            user.name,
-            str(user.access)
-        ))
-        user.reset_password()
-        self.db.update_user(user)
-        self.dialog.msgbox("Пароль пользователя сброшен".format(
-            user.name
-        ))
-
-    def edit_cards(self, user: UserModel):
-        code, tag = self.dialog.menu("Выберите карту",
-                                     choices=[(str(user.cards.index(x) + 1), x) for x in user.cards],
-                                     width=0,
-                                     height=0)
-        if code != Dialog.OK:
-            return
-        card = user.cards[int(tag) - 1]
-        code = self.dialog.yesno("Отвязать карту {}?".format(card),
-                                 width=0,
-                                 height=0)
-        if code != Dialog.OK:
-            return
-        logging.info("Пользователь {} с правами доступа {} отвязал карту {} пользователя {}".format(
-            self.operator.name,
-            str(self.operator.access),
-            card,
-            user.name
-        ))
-        user.cards.remove(card)
-        self.db.update_user(user)
-        self.dialog.msgbox("Карта отвязана",
-                           width=0,
-                           height=0)
 
 
 signals = [{'orig': signal.signal(signal.SIGINT, signal.SIG_IGN), 'signal': signal.SIGINT},

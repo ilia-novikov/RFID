@@ -36,10 +36,9 @@ class UserModel:
             self.active = active
         return
 
-    @staticmethod
-    def __get_hash(password):
+    def __get_hash(self, password):
         salt = 'q6GP9x%ijrG^5O77S=mrICu1irAfTEULt3YOMvJ-bhs9^OPO9cK9QoDr40%R'
-        return sha256((salt + password).encode('utf8')).hexdigest()
+        return sha256((salt + password + self.name + salt).encode('utf8')).hexdigest()
 
     def check_password(self, password):
         return self.__get_hash(password) == self.__hash
