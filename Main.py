@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 
 import logging
+import subprocess
 from time import sleep
 from datetime import datetime, date, timedelta
 import signal
@@ -151,8 +152,10 @@ class Main:
                                height=0)
             return
         choices = [AccessLevel.guest, AccessLevel.common]
-        if self.operator.access == AccessLevel.developer:
+        if self.operator.access >= AccessLevel.administrator:
             choices.append(AccessLevel.privileged)
+            choices.append(AccessLevel.administrator)
+        if self.operator.access == AccessLevel.developer:
             choices.append(AccessLevel.developer)
         code, tag = self.dialog.radiolist("Выберите уровень доступа:",
                                           width=0,
@@ -340,6 +343,8 @@ class Main:
         toggle_active_message = "Заблокировать" if user.active else "Снять блокировку"
         actions = [
             {'name': "Просмотреть информацию", 'action': lambda x: self.show_user_info(x)},
+            {'name': "Изменить имя", 'action': lambda x: self.change_name(x)},
+            {'name': "Изменить уровень доступа", 'action': lambda x: self.change_access_level(x)},
             {'name': "Добавить карту", 'action': lambda x: self.add_card(x)},
             {'name': "Удалить карту", 'action': lambda x: self.remove_card(x)},
             {'name': "Сбросить пароль", 'action': lambda x: self.reset_password(x)},
@@ -347,9 +352,9 @@ class Main:
             {'name': "Удалить пользователя", 'action': lambda x: self.delete_user(x)}
         ]
         code, tag = self.dialog.menu("Выберите действие",
+                                     choices=[(str(actions.index(x) + 1), x['name']) for x in actions],
                                      width=0,
-                                     height=0,
-                                     choices=[(str(actions.index(x) + 1), x['name']) for x in actions])
+                                     height=0)
         if code != Dialog.OK:
             return
         actions[int(tag) - 1]['action'](user)
@@ -436,6 +441,7 @@ class Main:
         self.dialog.msgbox("Карта привязана",
                            width=0,
                            height=0)
+
     # endregion
 
     # region Режимы работы
@@ -595,13 +601,17 @@ class Main:
             choices.extend([
                 "Добавление пользователя",
                 "Закрытие помещения"])
-        if self.operator.access.value >= AccessLevel.developer.value:
+        if self.operator.access.value >= AccessLevel.administrator.value:
             choices.extend([
                 "Редактирование пользователей",
                 "Просмотр системного лога",
-                "Очистка лога посещений",
+                "Очистка лога посещений"])
+
+        if self.operator.access == AccessLevel.developer:
+            choices.extend([
                 "Очистка системного лога",
                 "Очистка настроек и БД",
+                "Запуск командной оболочки",
                 "Завершение программы"])
         code, tag = self.dialog.menu("Выберите действие",
                                      choices=[('{}'.format(choices.index(x) + 1), x) for x in choices])
@@ -619,6 +629,7 @@ class Main:
             lambda: self.clean_visits_log(),
             lambda: self.clean_app_log(),
             lambda: self.clean_db(),
+            lambda: self.run_bash(),
             lambda: self.exit()
         ][int(tag) - 1]()
         if not self.was_unlocked:
@@ -735,6 +746,65 @@ class Main:
         card_id = self.card_reader.card_id
         self.card_reader.card_id = ''
         return card_id
+
+    @staticmethod
+    def run_bash():
+        subprocess.call('bash')
+
+    def change_name(self, user: UserModel):
+        code, result = self.dialog.inputbox("Введите новое имя",
+                                            width=0,
+                                            height=0)
+        if code != Dialog.OK or not result:
+            return
+        logging.info("Пользователь {} с уровнем доступа {} изменил имя {} на {}".format(
+            self.operator.name,
+            str(self.operator.access),
+            user.name,
+            result
+        ))
+        user.name = result
+        self.db.update_user(user)
+        self.dialog.msgbox("Имя было изменено",
+                           width=0,
+                           height=0)
+
+    def change_access_level(self, user: UserModel):
+        choices = [AccessLevel.guest, AccessLevel.common, AccessLevel.administrator]
+        if self.operator.access == AccessLevel.developer:
+            choices.append(AccessLevel.developer)
+        code, tag = self.dialog.radiolist("Выберите уровень доступа:",
+                                          width=0,
+                                          height=0,
+                                          choices=[(str(choices.index(x) + 1), str(x), user.access == x) for x in
+                                                   choices])
+        if code != Dialog.OK:
+            return
+        tag = int(tag) - 1
+        if choices[tag] == user.access:
+            self.dialog.msgbox("Уровень доступа не был изменен",
+                               width=0,
+                               height=0)
+            return
+        message = "Это действие расширит права пользователя!" \
+            if user.access.value < choices[tag].value else \
+            "Это действие урежет права пользователя!"
+        message += "\nВы уверены?"
+        code = self.dialog.yesno(message,
+                                 width=0,
+                                 height=0)
+        if code != Dialog.OK:
+            return
+        logging.info("Пользователь {} с уровнем доступа {} изменил уровень доступа {} на {}".format(
+            self.operator.name,
+            str(self.operator.access),
+            user.name,
+            str(choices[tag])))
+        user.access = choices[tag]
+        self.db.update_user(user)
+        self.dialog.msgbox("Уровень доступа был изменен",
+                           width=0,
+                           height=0)
 
 
 signals = [{'orig': signal.signal(signal.SIGINT, signal.SIG_IGN), 'signal': signal.SIGINT},

@@ -7,7 +7,8 @@ class AccessLevel(Enum):
     guest = 0
     common = 1
     privileged = 2
-    developer = 3
+    administrator = 3
+    developer = 4
 
     def __str__(self):
-        return ["Guest", "Common user", "Privileged user", "Developer"][self.value]
+        return ["Guest", "Common user", "Privileged user", "Administrator", "Developer"][self.value]
