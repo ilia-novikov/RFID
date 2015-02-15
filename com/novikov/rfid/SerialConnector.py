@@ -17,7 +17,8 @@ class SerialConnector:
     __TIMEOUT = 1
 
     def __init__(self, device, speed):
-        logging.info("Подключение к UART-устройству {} на скорости {} бод".format(
+        self.logger = logging.getLogger()
+        self.logger.info("Подключение к UART-устройству {} на скорости {} бод".format(
             device if device else '???',
             speed
         ))
@@ -26,7 +27,7 @@ class SerialConnector:
 
     def __send(self, data):
         if not self.device:
-            logging.error("UART-устройство не задано")
+            self.logger.error("UART-устройство не задано")
             return
         try:
             data = str(data).encode()
@@ -35,9 +36,9 @@ class SerialConnector:
             sleep(10.0 / 1000.0)
             serial.close()
         except SerialException as e:
-            logging.error("Ошибка конфигурации UART-устройства: {}".format(e))
+            self.logger.error("Ошибка конфигурации UART-устройства: {}".format(e))
         except ValueError as e:
-            logging.error("Ошибка конфигурации UART-устройства: {}".format(e))
+            self.logger.error("Ошибка конфигурации UART-устройства: {}".format(e))
 
     def open(self):
         self.__send(self.__CODE_OPEN)

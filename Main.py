@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 
 import logging
+import logging.handlers
 import subprocess
 from time import sleep
 from datetime import datetime, date, timedelta
@@ -31,25 +32,30 @@ class Main:
         logging.basicConfig(format='%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s]  %(message)s',
                             level=logging.DEBUG,
                             filename=APPLICATION_LOG)
+        self.logger = logging.getLogger('logger')
+        rotating_handler = logging.handlers.RotatingFileHandler(APPLICATION_LOG,
+                                                                maxBytes=1024 * 1024 * 2,
+                                                                backupCount=10)
+        self.logger.addHandler(rotating_handler)
         self.dialog = Dialog(dialog='dialog')
         self.visits_logger = VisitsLogger()
         self.debug = 'debug' in sys.argv
         with open(APPLICATION_LOG, mode='a') as log:
             log.write('-------------------------------------------------- \n')
-        logging.info("Приложение запущено, версия {}".format(__version__))
+        self.logger.info("Приложение запущено, версия {}".format(__version__))
         if getuid() != 0:
-            logging.error("Попытка запуска без прав root")
+            self.logger.error("Попытка запуска без прав root")
             self.dialog.msgbox("Необходим запуск с правами root! \n" +
                                "Работа завершена",
                                width=0,
                                height=0)
             exit(0)
         if self.debug:
-            logging.info("Запуск в отладочном режиме")
+            self.logger.info("Запуск в отладочном режиме")
         self.settings = Settings()
         if self.settings.is_first_run:
             if not self.create_settings():
-                logging.error("Ошибка при создании настроек приложения!")
+                self.logger.error("Ошибка при создании настроек приложения!")
                 self.dialog.msgbox("Настройки не были сохранены! \n" +
                                    "Работа завершена",
                                    width=0,
@@ -58,14 +64,14 @@ class Main:
         try:
             credentials = None
             if self.settings.get_db_option(Settings.DB_USER):
-                logging.info("Запрос пароля к БД")
+                self.logger.info("Запрос пароля к БД")
                 code, password = self.dialog.passwordbox(
                     "Пароль для доступа к БД".format(self.settings.get_db_option(Settings.DB_USER)),
                     width=0,
                     height=0,
                     insecure=True)
                 if code != Dialog.OK or not password:
-                    logging.error("Пароль к БД не был введен!")
+                    self.logger.error("Пароль к БД не был введен!")
                     self.dialog.msgbox("Пароль к БД не введен! \n" +
                                        "Работа завершена",
                                        width=0,
@@ -81,29 +87,63 @@ class Main:
                                         self.settings.get_db_option(Settings.DB_COLLECTION),
                                         credentials)
         except PyMongoError as e:
-            logging.error("Ошибка входа с текущими настройками подключения к БД: {}".format(e))
+            self.logger.error("Ошибка входа с текущими настройками подключения к БД: {}".format(e))
             self.dialog.msgbox("Ошибка входа с текущими настройками подключения к БД \n" +
                                "Работа завершена",
                                width=0,
                                height=0)
             exit(0)
+        self.is_waiting_card = False
+        if not self.debug:
+            self.card_reader = CardReader(self)
+            self.card_reader.start()
         if not self.db.has_users():
-            logging.info("Пользователи не найдены, будет создан аккаунт разработчика")
+            self.logger.info("Пользователи не найдены, будет создан аккаунт разработчика")
             if not self.add_developer():
-                logging.error("Ошибка при создании пользователя!")
+                self.logger.error("Ошибка при создании пользователя!")
                 self.dialog.msgbox("Пользователь не был создан! \n" +
                                    "Работа завершена",
                                    width=0,
                                    height=0)
                 exit(0)
+        if not self.db.has_any_developer():
+            self.logger.info("Будет создан аккаунт разработчика")
+            self.dialog.msgbox("Необходимо создать аккаунт разработчика из имеющегося аккаунта администратора")
+            administrators = [x for x in self.db.get_all_users() if x.access == AccessLevel.administrator]
+            code, tag = self.dialog.radiolist("Выберите аккаунт",
+                                              choices=[(str(administrators.index(x) + 1),
+                                                        x.name,
+                                                        administrators.index(x) == 0)
+                                                       for x in administrators],
+                                              width=0,
+                                              height=0)
+            if code != Dialog.OK:
+                self.logger.error("Ошибка при выборе разработчика!")
+                self.dialog.msgbox("Разработчик не был выбран! \n" +
+                                   "Работа завершена",
+                                   width=0,
+                                   height=0)
+                exit(0)
+            tag = int(tag) - 1
+            user = administrators[tag]
+            card_id = self.request_card("Подтвердите выбор картой пользователя {}...".format(
+                user.name
+            ))
+            if card_id not in user.cards:
+                self.logger.error("Ошибка при подтверждении разработчика!")
+                self.dialog.msgbox("Выбор не был подтвержден! \n" +
+                                   "Работа завершена",
+                                   width=0,
+                                   height=0)
+                exit(0)
+            user.access = AccessLevel.developer
+            self.db.update_user(user)
+            self.logger.info("Пользователь {} был выбран разработчиком")
+            self.dialog.msgbox("Разработчик успешно выбран")
         self.operator = None
         """ :type : UserModel """
         self.serial = SerialConnector(self.settings.get_uart_path(), 9600)
         self.was_unlocked = False
-        self.is_waiting_card = False
-        if not self.debug:
-            self.card_reader = CardReader(self)
-            self.card_reader.start()
         self.standard_mode()
 
     # region Создание пользователей
@@ -152,7 +192,7 @@ class Main:
                                height=0)
             return
         choices = [AccessLevel.guest, AccessLevel.common]
-        if self.operator.access >= AccessLevel.administrator:
+        if self.operator.access.value >= AccessLevel.administrator.value:
             choices.append(AccessLevel.privileged)
             choices.append(AccessLevel.administrator)
         if self.operator.access == AccessLevel.developer:
@@ -214,7 +254,7 @@ class Main:
     # region Работа с пользователями
 
     def create_settings(self):
-        logging.info("Создание файла настроек")
+        self.logger.info("Создание файла настроек")
         self.dialog.msgbox("Будет создан файл настроек",
                            width=0,
                            height=0)
@@ -272,7 +312,7 @@ class Main:
         return True
 
     def create_password(self):
-        logging.info("Попытка смены пароля пользователем {} с правами доступа {}".format(
+        self.logger.info("Попытка смены пароля пользователем {} с правами доступа {}".format(
             self.operator.name,
             str(self.operator.access)))
         self.dialog.msgbox("Вам необходимо задать пароль учетной записи",
@@ -303,7 +343,7 @@ class Main:
                 return False
         self.operator.update_password(password)
         self.db.update_user(self.operator)
-        logging.info("Пароль пользователя {} с правами доступа {} изменен".format(
+        self.logger.info("Пароль пользователя {} с правами доступа {} изменен".format(
             self.operator.name,
             str(self.operator.access)))
         return True
@@ -381,7 +421,7 @@ class Main:
                                  height=0)
         if code != Dialog.OK:
             return
-        logging.info("Пользователь {} с правами доступа {} сбросил пароль {} ({})".format(
+        self.logger.info("Пользователь {} с правами доступа {} сбросил пароль {} ({})".format(
             self.operator.name,
             str(self.operator.access),
             user.name,
@@ -411,7 +451,7 @@ class Main:
                                  height=0)
         if code != Dialog.OK:
             return
-        logging.info("Пользователь {} с правами доступа {} отвязал карту {} пользователя {}".format(
+        self.logger.info("Пользователь {} с правами доступа {} отвязал карту {} пользователя {}".format(
             self.operator.name,
             str(self.operator.access),
             card,
@@ -430,7 +470,7 @@ class Main:
                                width=0,
                                height=0)
             return
-        logging.info("Пользователь {} с правами доступа {} привязал карту {} для пользователя {}".format(
+        self.logger.info("Пользователь {} с правами доступа {} привязал карту {} для пользователя {}".format(
             self.operator.name,
             str(self.operator.access),
             card_id,
@@ -557,14 +597,14 @@ class Main:
     # region Консоль
 
     def show_control_window(self, should_check=True):
-        logging.info("Пользователь {} с правами доступа '{}' пытается получить доступ к консоли управления".format(
+        self.logger.info("Пользователь {} с правами доступа '{}' пытается получить доступ к консоли управления".format(
             self.operator.name,
             str(self.operator.access)
         ))
         self.dialog.set_background_title("Консоль управления")
         if should_check:
             if not self.operator.has_password():
-                logging.info("Пользователь {} с правами доступа '{}' создает новый пароль".format(
+                self.logger.info("Пользователь {} с правами доступа '{}' создает новый пароль".format(
                     self.operator.name,
                     str(self.operator.access)
                 ))
@@ -579,7 +619,7 @@ class Main:
                 if code != Dialog.OK:
                     return
                 if not self.operator.check_password(password):
-                    logging.info("Пользователь {} с правами доступа '{}' неверно ввел пароль".format(
+                    self.logger.info("Пользователь {} с правами доступа '{}' неверно ввел пароль".format(
                         self.operator.name,
                         str(self.operator.access)
                     ))
@@ -609,7 +649,9 @@ class Main:
 
         if self.operator.access == AccessLevel.developer:
             choices.extend([
+                "Просмотр ночного лога",
                 "Очистка системного лога",
+                "Очистка ночного лога",
                 "Очистка настроек и БД",
                 "Запуск командной оболочки",
                 "Завершение программы"])
@@ -627,7 +669,9 @@ class Main:
             lambda: self.edit_all_users(),
             lambda: self.show_app_log(),
             lambda: self.clean_visits_log(),
+            lambda: self.show_illegal_log(),
             lambda: self.clean_app_log(),
+            lambda: self.clean_illegal_log(),
             lambda: self.clean_db(),
             lambda: self.run_bash(),
             lambda: self.exit()
@@ -639,7 +683,7 @@ class Main:
             return
 
     def show_app_log(self):
-        logging.info("Пользователь {} с правами доступа '{}' просматривает лог приложения".format(
+        self.logger.info("Пользователь {} с правами доступа '{}' просматривает лог приложения".format(
             self.operator.name,
             str(self.operator.access)
         ))
@@ -649,7 +693,7 @@ class Main:
                                 height=0)
 
     def show_visits_log(self):
-        logging.info("Пользователь {} с правами доступа '{}' просматривает лог посещений".format(
+        self.logger.info("Пользователь {} с правами доступа '{}' просматривает лог посещений".format(
             self.operator.name,
             str(self.operator.access)
         ))
@@ -659,7 +703,7 @@ class Main:
                                 height=0)
 
     def clean_db(self):
-        logging.info("Попытка очистки БД пользователем {}".format(self.operator))
+        self.logger.info("Попытка очистки БД пользователем {}".format(self.operator))
         code = self.dialog.yesno("Вы уверены? Операция очистки БД необратима! \n" +
                                  "Программа будет завершена после очистки БД",
                                  width=0,
@@ -674,7 +718,7 @@ class Main:
         if code != Dialog.OK:
             return
         if not self.operator.check_password(password):
-            logging.info("Пользователь {} с правами доступа '{}' неверно ввел пароль".format(
+            self.logger.info("Пользователь {} с правами доступа '{}' неверно ввел пароль".format(
                 self.operator.name,
                 str(self.operator.access)
             ))
@@ -717,12 +761,12 @@ class Main:
             return
         remove(VisitsLogger.VISITS_LOG)
         if self.operator.access.value < AccessLevel.developer.value:
-            logging.info("Пользователь {} очистил лог посещений".format(self.operator.name))
+            self.logger.info("Пользователь {} очистил лог посещений".format(self.operator.name))
 
     # endregion
 
     def exit(self):
-        logging.info("Разработчик завершил выполнение программы: {}".format(self.operator.name))
+        self.logger.info("Разработчик завершил выполнение программы: {}".format(self.operator.name))
         exit(1)
 
     def request_card(self, title):
@@ -757,7 +801,7 @@ class Main:
                                             height=0)
         if code != Dialog.OK or not result:
             return
-        logging.info("Пользователь {} с уровнем доступа {} изменил имя {} на {}".format(
+        self.logger.info("Пользователь {} с уровнем доступа {} изменил имя {} на {}".format(
             self.operator.name,
             str(self.operator.access),
             user.name,
@@ -795,7 +839,7 @@ class Main:
                                  height=0)
         if code != Dialog.OK:
             return
-        logging.info("Пользователь {} с уровнем доступа {} изменил уровень доступа {} на {}".format(
+        self.logger.info("Пользователь {} с уровнем доступа {} изменил уровень доступа {} на {}".format(
             self.operator.name,
             str(self.operator.access),
             user.name,
@@ -805,6 +849,22 @@ class Main:
         self.dialog.msgbox("Уровень доступа был изменен",
                            width=0,
                            height=0)
+
+    def clean_illegal_log(self):
+        if not path.exists(VisitsLogger.ILLEGAL_LOG):
+            return
+        code = self.dialog.yesno("Вы уверены?",
+                                 width=0,
+                                 height=0)
+        if code != Dialog.OK:
+            return
+        remove(VisitsLogger.ILLEGAL_LOG)
+
+    def show_illegal_log(self):
+        if path.exists(VisitsLogger.ILLEGAL_LOG):
+            self.dialog.textbox(VisitsLogger.ILLEGAL_LOG,
+                                width=0,
+                                height=0)
 
 
 signals = [{'orig': signal.signal(signal.SIGINT, signal.SIG_IGN), 'signal': signal.SIGINT},
