@@ -16,8 +16,10 @@ class UserModel:
     HASH = "HASH"
     ACTIVE = "ACTIVE"
 
-    def __init__(self, model=None, creator=None, cards=[], name=None, access=AccessLevel.common,
+    def __init__(self, model=None, creator=None, cards=None, name=None, access=AccessLevel.common,
                  expire=datetime(2020, 1, 1), active=True):
+        if not cards:
+            cards = []
         if model:
             self.creator = model[self.CREATOR]
             self.cards = model[self.CARDS]

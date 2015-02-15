@@ -19,6 +19,7 @@ class VisitsLogger:
             with open(self.ILLEGAL_LOG, mode='a') as log:
                 log.write('-------------------------------------------------- \n')
             self.__append("Приложение запущено, версия: {} \n".format(__version__))
+
     @staticmethod
     def __get_datetime():
         return datetime.now().strftime('%a, %d %B %Y, %H:%M:%S: ')
