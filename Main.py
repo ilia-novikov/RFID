@@ -385,9 +385,11 @@ class Main:
             {'name': "Просмотреть информацию", 'action': lambda x: self.show_user_info(x)},
             {'name': "Изменить имя", 'action': lambda x: self.change_name(x)},
             {'name': "Изменить уровень доступа", 'action': lambda x: self.change_access_level(x)},
+            {'name': "Карты", 'action': lambda x: self.list_cards(x)},
             {'name': "Добавить карту", 'action': lambda x: self.add_card(x)},
             {'name': "Удалить карту", 'action': lambda x: self.remove_card(x)},
             {'name': "Сбросить пароль", 'action': lambda x: self.reset_password(x)},
+            {'name': "Объединить", 'action': lambda x: self.merge_user(x)},
             {'name': toggle_active_message, 'action': lambda x: self.toggle_user(x)},
             {'name': "Удалить пользователя", 'action': lambda x: self.delete_user(x)}
         ]
@@ -482,7 +484,45 @@ class Main:
                            width=0,
                            height=0)
 
-    # endregion
+    def list_cards(self, user: UserModel):
+        self.dialog.menu("Карты пользователя",
+                         choices=[(str(user.cards.index(x) + 1), x) for x in user.cards],
+                         width=0,
+                         height=0)
+
+        # endregion
+
+    def merge_user(self, user: UserModel):
+        users = [x for x in self.db.get_all_users() if x.cards != user.cards]
+        code, tag = self.dialog.radiolist("Выберите аккаунт",
+                                          choices=[(str(users.index(x) + 1),
+                                                    x.name,
+                                                    users.index(x) == 0)
+                                                   for x in users],
+                                          width=0,
+                                          height=0)
+        if code != Dialog.OK:
+            return
+        tag = int(tag) - 1
+        merged = users[tag]
+        if user.access != merged.access:
+            self.dialog.msgbox("Невозможно объединить пользователей с разным уровнем доступа!")
+            return
+        code, name = self.dialog.inputbox("Имя объединенного аккаунта",
+                                          width=0,
+                                          height=0)
+        if code != Dialog.OK:
+            return
+        user.name = name
+        user.cards.extend(merged.cards)
+        self.db.update_user(user)
+        self.db.remove_user(merged, self.operator.name)
+        self.logger.info("Пользователь {} с правами доступа {} объединил {} и {}".format(
+            self.operator.name,
+            str(self.operator.access),
+            user.name,
+            merged.name
+        ))
 
     # region Режимы работы
 
