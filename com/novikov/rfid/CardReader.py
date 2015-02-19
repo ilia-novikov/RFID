@@ -1,4 +1,3 @@
-import logging
 import os
 from threading import Thread
 
@@ -38,7 +37,6 @@ class CardReader(Thread):
                     'by-id/' \
                     'usb-Sycreader_RFID_Technology_Co.__Ltd_SYC_ID_IC_USB_Reader_08FF20140315-event-kbd'
                 if not os.path.exists(path):
-                    logging.getLogger().error("Считыватель карт не подключен")
                     continue
                 device = InputDevice(path)
                 device.grab()

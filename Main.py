@@ -2,12 +2,14 @@
 
 import logging
 import logging.handlers
+import os
 import subprocess
 from time import sleep
 from datetime import datetime, date, timedelta
 import signal
 from os import getuid, remove, path
 import sys
+import re
 
 from dialog import Dialog
 from pymongo.errors import PyMongoError
@@ -144,6 +146,9 @@ class Main:
         """ :type : UserModel """
         self.serial = SerialConnector(self.settings.get_uart_path(), 9600)
         self.was_unlocked = False
+        if self.settings.get_lock_state():
+            sleep(10)
+            self.lock_mode()
         self.standard_mode()
 
     # region Создание пользователей
@@ -238,7 +243,7 @@ class Main:
                                height=0)
             return
         access = AccessLevel.guest
-        tomorrow = date.today() + timedelta(days=1)
+        tomorrow = date.today() + timedelta(days=7)
         expire = datetime(tomorrow.year, tomorrow.month, tomorrow.day)
         user = UserModel(creator=self.operator.name,
                          cards=[card_id],
@@ -351,11 +356,13 @@ class Main:
     def show_user_info(self, user):
         info = ("Имя: {} \n" +
                 "Уровень доступа: {} \n" +
+                "Пользователя добавил: {} \n" +
                 "Привязано карт: {} \n" +
                 "Истекает: {} \n" +
                 "Пароль: {}").format(
             user.name,
             str(user.access),
+            user.creator,
             str(len(user.cards)),
             user.expire,
             'установлен'
@@ -374,7 +381,7 @@ class Main:
         if code != Dialog.OK:
             return
         user = users[int(tag) - 1]
-        if user.access == AccessLevel.developer and user.cards != self.operator.cards:
+        if user.access == AccessLevel.developer and self.operator.access != AccessLevel.developer:
             self.dialog.msgbox("Прямое редактирование пользователя запрещено",
                                width=0,
                                height=0)
@@ -385,6 +392,7 @@ class Main:
             {'name': "Просмотреть информацию", 'action': lambda x: self.show_user_info(x)},
             {'name': "Изменить имя", 'action': lambda x: self.change_name(x)},
             {'name': "Изменить уровень доступа", 'action': lambda x: self.change_access_level(x)},
+            {'name': "Изменить дату окончания действия аккаунта", 'action': lambda x: self.change_expiration_date(x)},
             {'name': "Карты", 'action': lambda x: self.list_cards(x)},
             {'name': "Добавить карту", 'action': lambda x: self.add_card(x)},
             {'name': "Удалить карту", 'action': lambda x: self.remove_card(x)},
@@ -524,6 +532,86 @@ class Main:
             merged.name
         ))
 
+    def change_name(self, user: UserModel):
+        code, result = self.dialog.inputbox("Введите новое имя",
+                                            width=0,
+                                            height=0)
+        if code != Dialog.OK or not result:
+            return
+        self.logger.info("Пользователь {} с уровнем доступа {} изменил имя {} на {}".format(
+            self.operator.name,
+            str(self.operator.access),
+            user.name,
+            result
+        ))
+        user.name = result
+        self.db.update_user(user)
+        self.dialog.msgbox("Имя было изменено",
+                           width=0,
+                           height=0)
+
+    def change_access_level(self, user: UserModel):
+        choices = [AccessLevel.guest, AccessLevel.common, AccessLevel.administrator]
+        if self.operator.access == AccessLevel.developer:
+            choices.append(AccessLevel.developer)
+        code, tag = self.dialog.radiolist("Выберите уровень доступа:",
+                                          width=0,
+                                          height=0,
+                                          choices=[(str(choices.index(x) + 1), str(x), user.access == x) for x in
+                                                   choices])
+        if code != Dialog.OK:
+            return
+        tag = int(tag) - 1
+        if choices[tag] == user.access:
+            self.dialog.msgbox("Уровень доступа не был изменен",
+                               width=0,
+                               height=0)
+            return
+        message = "Это действие расширит права пользователя!" \
+            if user.access.value < choices[tag].value else \
+            "Это действие урежет права пользователя!"
+        message += "\nВы уверены?"
+        code = self.dialog.yesno(message,
+                                 width=0,
+                                 height=0)
+        if code != Dialog.OK:
+            return
+        self.logger.info("Пользователь {} с уровнем доступа {} изменил уровень доступа {} на {}".format(
+            self.operator.name,
+            str(self.operator.access),
+            user.name,
+            str(choices[tag])))
+        user.access = choices[tag]
+        self.db.update_user(user)
+        self.dialog.msgbox("Уровень доступа был изменен",
+                           width=0,
+                           height=0)
+
+    def change_expiration_date(self, user: UserModel):
+        code, raw_date = self.dialog.calendar("Введите дату окончания действия аккаунта:",
+                                              width=0,
+                                              height=0,
+                                              day=user.expire.day,
+                                              month=user.expire.month,
+                                              year=user.expire.year)
+        if code != Dialog.OK:
+            return
+        expire = datetime(day=raw_date[0], month=raw_date[1], year=raw_date[2])
+        if expire <= user.expire:
+            self.dialog.msgbox("Невозможно изменить дату окончания аккаунта на прошедшее время")
+            return
+        user.expire = expire
+        self.db.update_user(user)
+        self.logger.info("Пользователь {} с правами {} изменил дату окончания действия карты {} на {}".format(
+            self.operator.name,
+            str(self.operator.access),
+            user.name,
+            user.expire
+        ))
+        self.dialog.msgbox("Дата окончания действия аккаунта была изменена")
+
+    # endregion
+
     # region Режимы работы
 
     def standard_mode(self):
@@ -571,6 +659,8 @@ class Main:
                     self.show_control_window()
 
     def lock_mode(self):
+        self.settings.set_lock_state(True)
+        self.settings.save()
         self.dialog.set_background_title("Установлена блокировка")
         while True:
             self.serial.lock()
@@ -617,6 +707,8 @@ class Main:
                                          title="ОК",
                                          extra_button=True,
                                          extra_label="Консоль")
+                self.settings.set_lock_state(False)
+                self.settings.save()
                 self.visits_logger.visit(self.operator)
                 if code == Dialog.EXTRA:
                     self.serial.maintenance()
@@ -679,14 +771,13 @@ class Main:
                 "Добавление гостя"])
         if self.operator.access.value >= AccessLevel.privileged.value:
             choices.extend([
-                "Добавление пользователя",
                 "Закрытие помещения"])
         if self.operator.access.value >= AccessLevel.administrator.value:
             choices.extend([
+                "Добавление пользователя",
                 "Редактирование пользователей",
                 "Просмотр системного лога",
                 "Очистка лога посещений"])
-
         if self.operator.access == AccessLevel.developer:
             choices.extend([
                 "Просмотр ночного лога",
@@ -704,8 +795,8 @@ class Main:
             lambda: self.create_password(),
             lambda: self.show_visits_log(),
             lambda: self.add_guest(),
-            lambda: self.add_user(),
             lambda: self.lock(),
+            lambda: self.add_user(),
             lambda: self.edit_all_users(),
             lambda: self.show_app_log(),
             lambda: self.clean_visits_log(),
@@ -780,15 +871,15 @@ class Main:
         exit(0)
 
     def clean_app_log(self):
-        if not path.exists(APPLICATION_LOG):
-            return
         code = self.dialog.yesno("Вы уверены? \n" +
                                  "Программа будет завершена после очистки лога",
                                  width=0,
                                  height=0)
         if code != Dialog.OK:
             return
-        remove(APPLICATION_LOG)
+        for file in os.listdir('.'):
+            if re.search(APPLICATION_LOG + '*', file):
+                remove(os.path.join('.', file))
         exit(0)
 
     def clean_visits_log(self):
@@ -802,93 +893,6 @@ class Main:
         remove(VisitsLogger.VISITS_LOG)
         if self.operator.access.value < AccessLevel.developer.value:
             self.logger.info("Пользователь {} очистил лог посещений".format(self.operator.name))
-
-    # endregion
-
-    def exit(self):
-        self.logger.info("Разработчик завершил выполнение программы: {}".format(self.operator.name))
-        exit(1)
-
-    def request_card(self, title):
-        if self.debug:
-            code, result = None, None
-            while not result or code != Dialog.OK:
-                code, result = self.dialog.inputbox("Приложите карту (ОТЛАДКА)",
-                                                    width=0,
-                                                    height=0)
-            return result
-        self.is_waiting_card = True
-        self.dialog.infobox(title,
-                            width=0,
-                            height=0)
-        while not self.card_reader.card_id:
-            self.dialog.infobox(title,
-                                width=0,
-                                height=0)
-            sleep(100.0 / 1000.0)
-        self.is_waiting_card = False
-        card_id = self.card_reader.card_id
-        self.card_reader.card_id = ''
-        return card_id
-
-    @staticmethod
-    def run_bash():
-        subprocess.call('bash')
-
-    def change_name(self, user: UserModel):
-        code, result = self.dialog.inputbox("Введите новое имя",
-                                            width=0,
-                                            height=0)
-        if code != Dialog.OK or not result:
-            return
-        self.logger.info("Пользователь {} с уровнем доступа {} изменил имя {} на {}".format(
-            self.operator.name,
-            str(self.operator.access),
-            user.name,
-            result
-        ))
-        user.name = result
-        self.db.update_user(user)
-        self.dialog.msgbox("Имя было изменено",
-                           width=0,
-                           height=0)
-
-    def change_access_level(self, user: UserModel):
-        choices = [AccessLevel.guest, AccessLevel.common, AccessLevel.administrator]
-        if self.operator.access == AccessLevel.developer:
-            choices.append(AccessLevel.developer)
-        code, tag = self.dialog.radiolist("Выберите уровень доступа:",
-                                          width=0,
-                                          height=0,
-                                          choices=[(str(choices.index(x) + 1), str(x), user.access == x) for x in
-                                                   choices])
-        if code != Dialog.OK:
-            return
-        tag = int(tag) - 1
-        if choices[tag] == user.access:
-            self.dialog.msgbox("Уровень доступа не был изменен",
-                               width=0,
-                               height=0)
-            return
-        message = "Это действие расширит права пользователя!" \
-            if user.access.value < choices[tag].value else \
-            "Это действие урежет права пользователя!"
-        message += "\nВы уверены?"
-        code = self.dialog.yesno(message,
-                                 width=0,
-                                 height=0)
-        if code != Dialog.OK:
-            return
-        self.logger.info("Пользователь {} с уровнем доступа {} изменил уровень доступа {} на {}".format(
-            self.operator.name,
-            str(self.operator.access),
-            user.name,
-            str(choices[tag])))
-        user.access = choices[tag]
-        self.db.update_user(user)
-        self.dialog.msgbox("Уровень доступа был изменен",
-                           width=0,
-                           height=0)
 
     def clean_illegal_log(self):
         if not path.exists(VisitsLogger.ILLEGAL_LOG):
@@ -905,6 +909,42 @@ class Main:
             self.dialog.textbox(VisitsLogger.ILLEGAL_LOG,
                                 width=0,
                                 height=0)
+
+    def exit(self):
+        self.logger.info("Разработчик завершил выполнение программы: {}".format(self.operator.name))
+        exit(1)
+
+    @staticmethod
+    def run_bash():
+        subprocess.call('bash')
+
+    # endregion
+
+    def request_card(self, title):
+        if self.debug:
+            code, result = None, None
+            while not result or code != Dialog.OK:
+                code, result = self.dialog.inputbox("Приложите карту (ОТЛАДКА)",
+                                                    width=0,
+                                                    height=0)
+            return result
+        self.is_waiting_card = True
+        self.dialog.infobox(title,
+                            width=0,
+                            height=0)
+        timer = 0
+        while not self.card_reader.card_id:
+            timer += 1
+            if timer >= 5 * 10:
+                timer = 0
+                self.dialog.infobox(title,
+                                    width=0,
+                                    height=0)
+            sleep(100.0 / 1000.0)
+        self.is_waiting_card = False
+        card_id = self.card_reader.card_id
+        self.card_reader.card_id = ''
+        return card_id
 
 
 signals = [{'orig': signal.signal(signal.SIGINT, signal.SIG_IGN), 'signal': signal.SIGINT},

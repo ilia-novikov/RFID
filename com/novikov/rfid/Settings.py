@@ -54,3 +54,9 @@ class Settings:
 
     def set_uart_path(self, value):
         self.__set_option('uart', 'path', value)
+
+    def get_lock_state(self):
+        return eval(self.settings.get('service', 'is_locked', fallback=False))
+
+    def set_lock_state(self, value):
+        self.__set_option('service', 'is_locked', str(value))
