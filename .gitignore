@@ -1,0 +1,5 @@
+*.log
+*.ini
+.idea/
+**/__pycache__
+*.iml
