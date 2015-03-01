@@ -1,0 +1,14 @@
+#logo {
+    width: 100px;
+    height: 100px;
+    float: left;
+    margin-right: 10px;
+}
+
+#cause {
+    margin-top: 40px;
+}
+
+.empty-list {
+    list-style-type: none;
+}

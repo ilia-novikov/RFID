@@ -22,11 +22,13 @@ from com.novikov.rfid.UserModel import UserModel
 from com.novikov.rfid.AccessLevel import AccessLevel
 from com.novikov.rfid.VisitsLogger import VisitsLogger
 from com.novikov.rfid import __version__
+from com.novikov.server.Server import Server
 
 
 __author__ = 'Ilia Novikov'
 
 APPLICATION_LOG = 'application.log'
+DEBUG = 'debug' in sys.argv
 
 
 class Main:
@@ -41,7 +43,7 @@ class Main:
         self.logger.addHandler(rotating_handler)
         self.dialog = Dialog(dialog='dialog')
         self.visits_logger = VisitsLogger()
-        self.debug = 'debug' in sys.argv
+        self.debug = DEBUG
         with open(APPLICATION_LOG, mode='a') as log:
             log.write('-------------------------------------------------- \n')
         self.logger.info("Приложение запущено, версия {}".format(__version__))
@@ -145,6 +147,8 @@ class Main:
         self.operator = None
         """ :type : UserModel """
         self.serial = SerialConnector(self.settings.get_uart_path(), 9600)
+        self.server = Server(80, self.db)
+        return
         self.was_unlocked = False
         if self.settings.get_lock_state():
             sleep(10)
@@ -947,11 +951,14 @@ class Main:
         return card_id
 
 
-signals = [{'orig': signal.signal(signal.SIGINT, signal.SIG_IGN), 'signal': signal.SIGINT},
-           {'orig': signal.signal(signal.SIGQUIT, signal.SIG_IGN), 'signal': signal.SIGQUIT},
-           {'orig': signal.signal(signal.SIGTSTP, signal.SIG_IGN), 'signal': signal.SIGTSTP}]
+signals = None
 
-Main()
-
-for s in signals:
-    signal.signal(s['signal'], s['orig'])
+if not DEBUG:
+    signals = [{'orig': signal.signal(signal.SIGINT, signal.SIG_IGN), 'signal': signal.SIGINT},
+               {'orig': signal.signal(signal.SIGQUIT, signal.SIG_IGN), 'signal': signal.SIGQUIT},
+               {'orig': signal.signal(signal.SIGTSTP, signal.SIG_IGN), 'signal': signal.SIGTSTP}]
+    Main()
+    for s in signals:
+        signal.signal(s['signal'], s['orig'])
+else:
+    Main()
