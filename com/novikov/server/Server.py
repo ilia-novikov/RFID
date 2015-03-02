@@ -13,7 +13,7 @@ class Server:
         try:
             handler = ServerHandler
             handler.db = db
-            server = HTTPServer(('localhost', port), ServerHandler)
+            server = HTTPServer(('192.168.1.3', port), ServerHandler)
             server.serve_forever()
         except KeyboardInterrupt:
             if server:
