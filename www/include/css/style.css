@@ -5,10 +5,26 @@
     margin-right: 10px;
 }
 
-#cause {
-    margin-top: 40px;
+.shifted {
+    margin-top: 55px;
+}
+
+.small_shifted {
+    margin-top: 20px;
 }
 
 .empty-list {
     list-style-type: none;
+}
+
+.alert {
+    margin-right: 15px;
+    margin-left: 15px;
+    margin-top: 10px;
+}
+
+.navbar {
+    margin-right: 15px;
+    margin-left: 15px;
+    margin-top: 10px;
 }

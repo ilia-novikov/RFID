@@ -38,15 +38,15 @@ class UserModel:
             self.active = active
         return
 
-    def __get_hash(self, password):
+    def get_hash(self, password):
         salt = 'q6GP9x%ijrG^5O77S=mrICu1irAfTEULt3YOMvJ-bhs9^OPO9cK9QoDr40%R'
         return sha256((salt + password + self.name + salt).encode('utf8')).hexdigest()
 
     def check_password(self, password):
-        return self.__get_hash(password) == self.__hash
+        return self.get_hash(password) == self.__hash
 
     def update_password(self, password):
-        self.__hash = self.__get_hash(password)
+        self.__hash = self.get_hash(password)
 
     def reset_password(self):
         self.__hash = None

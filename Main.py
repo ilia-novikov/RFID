@@ -36,11 +36,7 @@ class Main:
         logging.basicConfig(format='%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s]  %(message)s',
                             level=logging.DEBUG,
                             filename=APPLICATION_LOG)
-        self.logger = logging.getLogger('logger')
-        rotating_handler = logging.handlers.RotatingFileHandler(APPLICATION_LOG,
-                                                                maxBytes=1024 * 1024 * 2,
-                                                                backupCount=10)
-        self.logger.addHandler(rotating_handler)
+        self.logger = logging.getLogger()
         self.dialog = Dialog(dialog='dialog')
         self.visits_logger = VisitsLogger()
         self.debug = DEBUG
@@ -147,11 +143,11 @@ class Main:
         self.operator = None
         """ :type : UserModel """
         self.serial = SerialConnector(self.settings.get_uart_path(), 9600)
-        self.server = Server(80, self.db)
-        return
+        if self.debug and 'server' in sys.argv:
+            self.server = Server(80, self.db, self.serial)
+            return
         self.was_unlocked = False
         if self.settings.get_lock_state():
-            sleep(10)
             self.lock_mode()
         self.standard_mode()
 
@@ -378,10 +374,11 @@ class Main:
 
     def edit_all_users(self):
         users = self.db.get_all_users()
+        title = lambda x: ("[!] " if not x.active else '') + x.name
         code, tag = self.dialog.menu("Выберите пользователя",
                                      width=0,
                                      height=0,
-                                     choices=[(str(users.index(x) + 1), x.name) for x in users])
+                                     choices=[(str(users.index(x) + 1), title(x)) for x in users])
         if code != Dialog.OK:
             return
         user = users[int(tag) - 1]

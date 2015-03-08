@@ -1,5 +1,6 @@
 import os
 from threading import Thread
+from time import sleep
 
 from evdev import InputDevice, KeyEvent
 from evdev import ecodes
@@ -37,6 +38,7 @@ class CardReader(Thread):
                     'by-id/' \
                     'usb-Sycreader_RFID_Technology_Co.__Ltd_SYC_ID_IC_USB_Reader_08FF20140315-event-kbd'
                 if not os.path.exists(path):
+                    sleep(1)
                     continue
                 device = InputDevice(path)
                 device.grab()
@@ -56,5 +58,6 @@ class CardReader(Thread):
                         buffer.clear()
                         continue
                     buffer.append(str(char))
-            except Exception:
+            except:
+                sleep(1)
                 pass
