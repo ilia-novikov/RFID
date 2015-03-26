@@ -7,8 +7,8 @@ __author__ = 'Ilia Novikov'
 
 
 class VisitsLogger:
-    VISITS_LOG = 'visits.log'
-    ILLEGAL_LOG = 'illegal.log'
+    VISITS_LOG = 'logs/visits.log'
+    ILLEGAL_LOG = 'logs/illegal.log'
 
     def __init__(self):
         if self.__is_legal():
@@ -26,7 +26,7 @@ class VisitsLogger:
 
     @staticmethod
     def __is_legal():
-        return 9 < datetime.now().hour < 22
+        return 9 <= datetime.now().hour <= 20
 
     def __append(self, message):
         if self.__is_legal():

@@ -9,7 +9,6 @@ from datetime import datetime, date, timedelta
 import signal
 from os import getuid, remove, path
 import sys
-import re
 
 from dialog import Dialog
 from pymongo.errors import PyMongoError
@@ -27,20 +26,25 @@ from com.novikov.server.Server import Server
 
 __author__ = 'Ilia Novikov'
 
-APPLICATION_LOG = 'application.log'
 DEBUG = 'debug' in sys.argv
 
 
 class Main:
+    APPLICATION_LOG = 'logs/application.log'
+
     def __init__(self):
+        if not os.path.exists('logs'):
+            os.makedirs('logs')
+        if not os.path.exists('keys'):
+            os.makedirs('keys')
         logging.basicConfig(format='%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s]  %(message)s',
                             level=logging.DEBUG,
-                            filename=APPLICATION_LOG)
+                            filename=self.APPLICATION_LOG)
         self.logger = logging.getLogger()
         self.dialog = Dialog(dialog='dialog')
         self.visits_logger = VisitsLogger()
         self.debug = DEBUG
-        with open(APPLICATION_LOG, mode='a') as log:
+        with open(self.APPLICATION_LOG, mode='a') as log:
             log.write('-------------------------------------------------- \n')
         self.logger.info("Приложение запущено, версия {}".format(__version__))
         if getuid() != 0:
@@ -143,9 +147,9 @@ class Main:
         self.operator = None
         """ :type : UserModel """
         self.serial = SerialConnector(self.settings.get_uart_path(), 9600)
-        if self.debug and 'server' in sys.argv:
-            self.server = Server(80, self.db, self.serial)
-            return
+        if 'server' in sys.argv:
+            self.server = Server(443, False, self.db, self.serial)
+            self.server.start()
         self.was_unlocked = False
         if self.settings.get_lock_state():
             self.lock_mode()
@@ -819,8 +823,8 @@ class Main:
             self.operator.name,
             str(self.operator.access)
         ))
-        if path.exists(APPLICATION_LOG):
-            self.dialog.textbox(APPLICATION_LOG,
+        if path.exists(self.APPLICATION_LOG):
+            self.dialog.textbox(self.APPLICATION_LOG,
                                 width=0,
                                 height=0)
 
@@ -863,13 +867,13 @@ class Main:
             return
         self.db.drop_collection()
         self.db.drop_db_user(self.settings.get_db_option(Settings.DB_USER))
-        if path.exists(APPLICATION_LOG):
-            remove(APPLICATION_LOG)
+        if path.exists(self.APPLICATION_LOG):
+            remove(self.APPLICATION_LOG)
         if path.exists(VisitsLogger.VISITS_LOG):
             remove(VisitsLogger.VISITS_LOG)
         if path.exists(Settings.FILENAME):
             remove(Settings.FILENAME)
-        exit(0)
+        self.exit()
 
     def clean_app_log(self):
         code = self.dialog.yesno("Вы уверены? \n" +
@@ -878,10 +882,8 @@ class Main:
                                  height=0)
         if code != Dialog.OK:
             return
-        for file in os.listdir('.'):
-            if re.search(APPLICATION_LOG + '*', file):
-                remove(os.path.join('.', file))
-        exit(0)
+        remove(self.APPLICATION_LOG)
+        self.exit()
 
     def clean_visits_log(self):
         if not path.exists(VisitsLogger.VISITS_LOG):
@@ -958,4 +960,7 @@ if not DEBUG:
     for s in signals:
         signal.signal(s['signal'], s['orig'])
 else:
-    Main()
+    try:
+        Main()
+    except KeyboardInterrupt:
+        exit(0)

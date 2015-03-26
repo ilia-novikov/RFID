@@ -15,7 +15,9 @@ __author__ = 'Ilia Novikov'
 
 
 class ServerHandler(BaseHTTPRequestHandler):
-    def __init__(self, host, db: DatabaseConnector, serial: SerialConnector, stream_port, *args):
+    REQUESTS_LOG = 'logs/requests.log'
+
+    def __init__(self, host, db: DatabaseConnector, serial: SerialConnector, stream_port=None, *args):
         self.routes = {
             '/': lambda: self.redirect('/home'),
             '/home': lambda: self.generate_home(),
@@ -25,10 +27,7 @@ class ServerHandler(BaseHTTPRequestHandler):
         }
         self.directories = {
             'root': 'www',
-            'secure': 'www/secure/',
             'templates': 'www/templates/',
-            'pages': 'www/pages/',
-            'include': 'www/include/'
         }
         self.mimes = {
             '.js': 'application/javascript',
@@ -95,7 +94,7 @@ class ServerHandler(BaseHTTPRequestHandler):
         header = self.headers['Authorization']
         header = header[header.find(' '):]
         users = self.db.get_all_users()
-        card, password = b64decode(header).decode('utf-8').split(':')
+        card, password = b64decode(bytes(header, 'utf-8')).decode('utf-8').split(':')
         user = [x for x in users if card in x.cards and x.check_password(password)]
         if len(user) == 0:
             return None
@@ -134,6 +133,9 @@ class ServerHandler(BaseHTTPRequestHandler):
         self.generate('error', 'Ошибка сервера', message, code)
 
     def generate_logs(self):
+        if not path.exists(VisitsLogger.VISITS_LOG):
+            self.generate_error("Файл лога не найден")
+            return
         with open(VisitsLogger.VISITS_LOG) as log:
             events = [x.strip() for x in log.readlines()[-20:]]
             view = ''.join(['<li class="list-group-item">{}</li>'.format(x) for x in events
@@ -141,7 +143,10 @@ class ServerHandler(BaseHTTPRequestHandler):
             self.generate('logs', "Лог посещений", view)
 
     def generate_camera(self):
-        self.generate('camera', 'Камера', '{}:{}'.format(self.host, self.stream_port))
+        if not self.stream_port:
+            self.generate_error("Поддержка камеры была отключена")
+        else:
+            self.generate('camera', 'Камера', '{}:{}'.format(self.host, self.stream_port))
 
     def generate_not_found(self):
         self.generate_error("Ресурс не найден", code=404)
@@ -175,3 +180,7 @@ class ServerHandler(BaseHTTPRequestHandler):
         else:
             name = "не авторизован"
         self.generate('home', "RFID сервер", name)
+
+    def log_message(self, pattern, *args):
+        with open(self.REQUESTS_LOG, 'a') as log:
+            log.write(pattern % args + '\n')

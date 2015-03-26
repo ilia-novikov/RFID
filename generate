@@ -1,0 +1,6 @@
+openssl req -x509 -newkey rsa:2048 -keyout keys/server.key -out keys/server.crt -days 3650 &&
+echo "[OK] Ключи были созданы" &&
+openssl rsa -in keys/server.key -out keys/server.key &&
+echo "[OK] Снято шифрование закрытого ключа" &&
+cat keys/server.crt keys/server.key > keys/server.pem &&
+echo "[OK] Ключи были объединены в PEM файл"

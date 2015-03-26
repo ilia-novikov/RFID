@@ -1,5 +1,6 @@
-*.log
+logs/
 *.ini
 .idea/
 **/__pycache__
 *.iml
+keys/

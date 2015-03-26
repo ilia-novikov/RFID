@@ -1,0 +1,9 @@
+#! /bin/bash
+
+echo "Removing log files..." &&
+rm -rf ./logs/*.log &&
+echo "Removing config files..." &&
+rm -rf ./*.ini &&
+echo "Removing certificate file..." &&
+rm -rf ./*.pem &&
+echo "Cleanup done!"
