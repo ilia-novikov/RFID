@@ -53,7 +53,7 @@ class Main:
                                "Работа завершена",
                                width=0,
                                height=0)
-            exit(0)
+            self.exit()
         if self.debug:
             self.logger.info("Запуск в отладочном режиме")
         self.settings = Settings()
@@ -64,7 +64,7 @@ class Main:
                                    "Работа завершена",
                                    width=0,
                                    height=0)
-                exit(0)
+                self.exit()
         try:
             credentials = None
             if self.settings.get_db_option(Settings.DB_USER):
@@ -80,7 +80,7 @@ class Main:
                                        "Работа завершена",
                                        width=0,
                                        height=0)
-                    exit(0)
+                    self.exit()
                 credentials = {
                     'user': self.settings.get_db_option(Settings.DB_USER),
                     'password': password
@@ -96,7 +96,7 @@ class Main:
                                "Работа завершена",
                                width=0,
                                height=0)
-            exit(0)
+            self.exit()
         self.is_waiting_card = False
         if not self.debug:
             self.card_reader = CardReader(self)
@@ -109,7 +109,7 @@ class Main:
                                    "Работа завершена",
                                    width=0,
                                    height=0)
-                exit(0)
+                self.exit()
         if not self.db.has_any_developer():
             self.logger.info("Будет создан аккаунт разработчика")
             self.dialog.msgbox("Необходимо создать аккаунт разработчика из имеющегося аккаунта администратора")
@@ -127,7 +127,7 @@ class Main:
                                    "Работа завершена",
                                    width=0,
                                    height=0)
-                exit(0)
+                self.exit()
             tag = int(tag) - 1
             user = administrators[tag]
             card_id = self.request_card("Подтвердите выбор картой пользователя {}...".format(
@@ -139,7 +139,7 @@ class Main:
                                    "Работа завершена",
                                    width=0,
                                    height=0)
-                exit(0)
+                self.exit()
             user.access = AccessLevel.developer
             self.db.update_user(user)
             self.logger.info("Пользователь {} был выбран разработчиком")
@@ -148,7 +148,7 @@ class Main:
         """ :type : UserModel """
         self.serial = SerialConnector(self.settings.get_uart_path(), 9600)
         if 'server' in sys.argv:
-            self.server = Server(443, False, self.db, self.serial)
+            self.server = Server(DEBUG, False, self.db, self.serial)
             self.server.start()
         self.was_unlocked = False
         if self.settings.get_lock_state():
@@ -914,7 +914,9 @@ class Main:
                                 height=0)
 
     def exit(self):
-        self.logger.info("Разработчик завершил выполнение программы: {}".format(self.operator.name))
+        if self.server:
+            self.server.stop()
+        self.logger.info("Выполнение программы завершено")
         exit(1)
 
     @staticmethod

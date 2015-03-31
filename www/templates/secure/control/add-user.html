@@ -1,0 +1,27 @@
+<!-- { "css": ["bootstrap-datepicker.min", "bootstrap-select.min"],
+        "js": ["bootstrap-datepicker.min", "bootstrap-select.min"],
+        "in_develop": "True" } -->
+<div class="shifted center-block input-container">
+    <form action="/control/add-user">
+        <div class="form-group">
+            <label class="control-label" for="name">Имя</label>
+            <input class="form-control" required id="name" name="name" placeholder="Иван Петров">
+        </div>
+        <div class="form-group">
+            <label class="control-label" for="card">Номер карты</label>
+            <input type="password" required pattern="[0-9]*" class="form-control" id="card" name="card"
+                   placeholder="0000000000">
+        </div>
+        <div class="form-group">
+            <label class="control-label" for="expire">Дата окончания действия аккаунта</label>
+            <input type="text" required class="form-control" id="expire" name="expire">
+        </div>
+        <div class="form-group">
+            <label class="control-label" for="access">Уровень доступа</label> <br>
+            <select id="access" name="access">
+                $access
+            </select>
+        </div>
+        <button type="submit" id="submit" class="btn btn-default">Готово</button>
+    </form>
+</div>

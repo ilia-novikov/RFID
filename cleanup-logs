@@ -1,5 +1,5 @@
 #! /bin/bash
 
 echo "Removing log files..." &&
-rm -rf ./*.log &&
+rm -rf ./logs/*.log &&
 echo "Cleanup done!"
