@@ -20,3 +20,7 @@ Currently implemented features:
 * Importing settings
 * Advanced lock mode
 * Working with RFID reader (keyboard emulating) in separate thread
+* HTTPS server
+  * Access to logs
+  * Access to door control
+  * Users authorization
