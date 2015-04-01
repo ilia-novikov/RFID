@@ -378,7 +378,7 @@ class Main:
 
     def edit_all_users(self):
         users = self.db.get_all_users()
-        title = lambda x: ("[!] " if not x.active else '') + x.name
+        title = lambda x: ("[!] " if not x.active or datetime.now() >= x.expire else '') + x.name
         code, tag = self.dialog.menu("Выберите пользователя",
                                      width=0,
                                      height=0,
